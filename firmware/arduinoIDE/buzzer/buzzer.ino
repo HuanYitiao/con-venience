@@ -1,7 +1,6 @@
 #define BUZZER_PIN 23
 
 void setup() {
-  // Star Wars Main Theme
   tone(BUZZER_PIN, 440, 500); delay(550);  // A
   tone(BUZZER_PIN, 440, 500); delay(550);  // A
   tone(BUZZER_PIN, 440, 500); delay(550);  // A
