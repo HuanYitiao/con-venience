@@ -3,7 +3,7 @@
 #include "songs.h"
 
 void setup() {
-  playMusic(boot);
+  playRandomMusic(musics, sizeof(musics)/sizeof(musics[0]));
 }
 
 void loop() {

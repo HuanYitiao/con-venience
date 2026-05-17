@@ -15,3 +15,4 @@ struct Music {
 };
 
 void playMusic(Music music);
+void playRandomMusic(Music musics[], int length);

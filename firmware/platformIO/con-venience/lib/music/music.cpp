@@ -11,3 +11,9 @@ void playMusic(Music music)
     delay(delayTime + 5); 
   }
 }
+
+void playRandomMusic(Music musics[], int length)
+{
+    int ran = random(0, length);
+    playMusic(musics[ran]);
+}
