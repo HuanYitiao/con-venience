@@ -1,142 +1,139 @@
 # con-venience
 
-> An open-source wearable social device for fursuit interaction — inspired by Digimon virtual pets.
+[![Build Firmware](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml/badge.svg)](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml)
 
-**con-venience** (convention + convenience) is a wearable device designed for fursuit wearers who can't easily use a phone at furry conventions. It lets you exchange social contacts through NFC, a custom near-field wired protocol (ACOM), and BLE — no human hands required.
+> *Ubi amici, ibi opes.* — Plautus
+> Where there are friends, there is wealth.
+
+> *Ever hit it off with another fursuiter, only to realize — you can't unlock your phone through mesh eyes, can't type with paws on, and definitely don't want to break the magic by de-suiting just to swap contacts?*
+>
+> **con-venience** solves that. Two wrists touch. Done.
+
+<!-- TODO: insert demo video here -->
+<!-- TODO: insert hero image / hand-drawn sketch here -->
 
 ---
 
-## The Problem
+## What it does
 
-At furry conventions, fursuiters can't easily use their phones with paws. Exchanging social links requires taking off paws, fumbling with a screen, or asking someone else to type for you. **con-venience** solves this with a wearable device that handles contact exchange automatically — tap, connect, or bump.
+**con-venience** is an open-source wearable social device for fursuit conventions. It lives on your forearm like a watch and handles contact exchange so you never have to reach for your phone.
 
----
-
-## How It Works
-
-| Scenario | Method |
+| Scenario | How it works |
 |---|---|
-| Regular attendee wants to follow you | NFC tap with phone → opens Telegram directly |
-| Two fursuiters want to exchange contacts | ACOM — magnetic contact pads snap together, data exchanges automatically |
-| Group of fursuiters want to add each other | Long-press button → BLE 5-minute discovery window |
+| 🐾 Fursuiter meets fursuiter | Press devices together → Telegram handles exchange automatically via **ACOM** (physical contact protocol) |
+| 📱 Attendee meets fursuiter | Scan QR code on display → opens Telegram/YouTube instantly |
+| 🎉 Group meetup | BLE pairing window opens for bulk contact exchange |
+| 😴 Standing by | E-ink display shows your QR code / handles with near-zero power draw |
 
----
+### ACOM — the signature interaction
 
-## Features (v1)
+ACOM (Asymmetric Contact Over Metal) is a single-wire half-duplex UART protocol over two exposed metal contact pads, guided by side magnets with opposite polarity. When two devices touch, they handshake and exchange usernames — no pairing, no menus, no fumbling.
 
-- **E-ink display** — shows QR codes for multiple social platforms, short-press button to cycle pages
-- **NFC** — phone tap opens your Telegram link instantly (PN532, Tag mode)
-- **ACOM** — custom single-wire half-duplex protocol over magnetic contact pads; two identical devices snap together and exchange data automatically
-- **BLE** — long-press triggers a 5-minute discovery window; find nearby con-venience devices, confirm to add, window refreshes on each new contact
-- **Local storage** — NVS stores config, LittleFS stores page content; survives power loss
-- **BLE phone config** — update your Telegram handle and social links wirelessly via Web Bluetooth
-- **BLE sync** — push today's encounter log to your phone after the convention
-- **E-ink backlight** — white LEDs for dark venues, toggle with long-press
-- **Passive buzzer** — audio feedback on ACOM connect, NFC tap, and BLE add
+This is the interaction that makes **con-venience** worth wearing.
 
 ---
 
 ## Hardware
 
-| Component | Part | Notes |
+| Component | Choice | Why |
 |---|---|---|
-| MCU | ESP32-S3-Zero | Dual-core 240MHz, BLE 5.0, 24 GPIO, USB-C |
-| E-ink display | 2.9" 296×128px B/W SPI | Waveshare; always-on, sunlight readable |
-| NFC | PN532 module | Tag mode (v1); Reader/Card Emulation planned (v2) |
-| ACOM interface | 2× PCB edge contact pads + side magnets | Signal on top, GND on bottom; magnets align polarity |
-| Power | 3× AA NiMH (e.g. Eneloop) | 4.5V → 3.3V via AMS1117; ~2500mAh, no shipping restrictions |
-| Button | 12mm+ tactile switch | Short press: page flip; Long press: BLE window / backlight |
-| Buzzer | Passive piezo 12×5.5mm | PWM-driven, different tones for each event |
-| Backlight | 4× white 3mm LED | E-ink illumination for dark venues |
-| USB-C | Standard connector | Firmware update, dev power |
+| MCU | ESP32-S3-Zero (TBD)| BLE + native USB + enough GPIO |
+| Display | 2.9" Waveshare e-ink, 296×128px | Sunlight readable, ~0mW standby |
+| Audio | Passive piezo buzzer (PWM) | Game Boy–style feedback tones |
+| Power | CR2450 coin cell (TBD)| 18h+ convention day on a single cell |
 
-**PCB:** Digimon-inspired rounded enclosure, AA battery compartment on back, ACOM contacts on bottom edge.
+**Form factor:** wrist-worn, forearm mount, watch-like profile. Designed around the constraint that gloved paws can't do precise button presses — a single short press cycles display pages; a long press triggers pairing mode.
 
 ---
 
-## ACOM Protocol
+## Project status
 
-ACOM (short for a-com, the device's physical contact interface) is a custom single-wire half-duplex UART protocol.
+```
+[x] Hardware architecture finalized
+[x] Component selection complete
+[x] Buzzer / melody playback — integrated
+[~] e-ink display — tested standalone, not yet merged into main firmware
+[~] BLE — tested standalone, not yet merged into main firmware
+[~] Button input — tested standalone, not yet merged into main firmware
+[ ] ACOM — waiting on hardware materials
+[ ] u8g2 UI implementation (QR page, contacts list, pairing animation)
+[ ] PCB v1 — target: small convention demo, October
+[ ] Community hardware kit release — target: February
+```
 
-- Two contact pads: **Signal** (top) and **GND** (bottom)
-- Side magnets with opposing polarity auto-align two identical devices
-- When devices connect face-to-face, Signal connects to Signal and GND to GND — correct for shared single-wire bus
-- Collision arbitration uses **randomised exponential backoff** (0–255ms, doubling on retry)
-- Payload: device ID, Telegram handle, social links — all stored in NVS
-
----
-
-## Device ID
-
-Each device generates a random **4-character uppercase ID** (e.g. `MIST`) on first boot. Collision probability is low for convention-scale use. A community registry is planned for global uniqueness.
-
----
-
-## Firmware
-
-Built with **PlatformIO + VS Code**, Arduino framework.
-
-Two tracks are planned:
-
-| Track | Framework | Audience |
-|---|---|---|
-| `firmware/arduino` | Arduino (PlatformIO) | Community contributors |
-| `firmware/espidf` | ESP-IDF | Production / power optimisation |
-
-Storage: NVS for user config, LittleFS for page content and QR images.
+`[~]` = tested, pending integration
 
 ---
 
-## Roadmap
-
-**v1 — Breadboard prototype (target: July 2025)**
-- [ ] E-ink display with multi-page QR layout
-- [ ] NFC Tag mode (phone tap → Telegram)
-- [ ] ACOM wired contact exchange
-- [ ] BLE discovery window with confirmation
-- [ ] BLE phone config and encounter sync
-- [ ] Local NVS/LittleFS storage
-
-**v1 PCB (target: October 2025)**
-- [ ] Digimon-inspired enclosure
-- [ ] ACOM magnetic contact pads
-- [ ] E-ink backlight LEDs
-- [ ] AA battery compartment
-
-**v2 (community-driven)**
-- [ ] PN532 Card Emulation for device-to-device NFC
-- [ ] Community plugin page system
-- [ ] Global device ID registry (possible Barq collaboration)
-
+## Getting started
 ---
 
-## Getting Started
+## Architecture
 
-*Coming soon — hardware arrives May 2025.*
+```
+con-venience/
+├── firmware/
+│   └── platformIO/con-venience/   # Main firmware (Arduino framework via PlatformIO)
+│       ├── src/
+│       │   ├── main.cpp           # Entry point, page state machine
+│       └── platformio.ini
+├── hardware/                      # Schematics, PCB files (KiCad)
+├── tools/                         # Helper scripts for contributors
+│   └── image-convert/             # Convert images to e-ink compatible format
+├── ui/                            # UI layout references (Figma exports, mockups)
+└── docs/                          # Documentation
+```
+
+If you've never touched embedded before, the PlatformIO project opens straight in VS Code — no manual toolchain setup.
 
 ---
 
 ## Contributing
 
-This project is designed for community extension. Once the first hardware batch ships, contribution guides will cover:
+The furry community has a lot of programmers. This project is designed for them.
 
-- Writing new display page modules
-- Adding sensor support via the I2C/SPI expansion headers
-- Porting to other ESP32 variants
+**Good first contributions:**
+- New display pages (additional QR codes, custom layouts)
+- BLE companion app features
+- Documentation and translations
+
+**Hardware contributions:**
+- PCB design review
+- Alternative form factors
+
+If you want to contribute but aren't sure where to start, open an issue and say hi.
 
 ---
 
-## Inspiration
+## Roadmap
 
-- **Digimon / Tamagotchi** — physical contact interaction between devices
-- **EF28 Badge** (Eurofurence) — open-source ESP32 convention badge
-- **Badger 2040** (Pimoroni) — e-ink convention badge
+- **Now:** Breadboard prototype, ACOM validation, core UI
+- **October:** PCB v1, small convention demo
+- **February:** Community hardware kit launch
+- **Future:** Fursuit companion
+
+---
+
+## Vision
+**con-venience** is designed to grow into a full fursuit companion — a wearable assistant for the entire convention day, not just contact exchange. With community involvement, future versions could include panel schedule alerts so you never miss an event while suited, body temperature and humidity monitoring to help you stay safe inside a fursuit, and integrations with convention apps, social platforms, and whatever the community decides to build next.
+
+The hardware is a platform. What runs on it is up to everyone.
+
+> *Semel in anno licet insanire.* — Seneca
+> Once a year, it is permitted to go a little mad.
+
+---
+
+## Why open source?
+
+Because the people who would use this are also the people who can improve it. Selling hardware kits funds development; keeping the firmware open means the community can extend it. A **con-venience** on your arm should feel like *your* device.
 
 ---
 
 ## License
 
-- Firmware: [MIT License](LICENSE)
-- Hardware design files: [CERN-OHL-S-2.0](LICENSE-HARDWARE)
+MIT — do whatever you want, just keep the attribution.
 
-© 2025 HuanYitiao
+---
+
+*Built for the furry community. Designed in Sweden.*
