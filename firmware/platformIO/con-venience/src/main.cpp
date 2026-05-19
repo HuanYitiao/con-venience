@@ -1,34 +1,58 @@
 #include <Arduino.h>
-#include <GxEPD2_BW.h>
-#include <Fonts/FreeMonoBold9pt7b.h>
-#include <SPI.h>
+#include "storage.h"
 
-SPIClass hspi(HSPI);
-
-GxEPD2_BW<GxEPD2_290_T94, GxEPD2_290_T94::HEIGHT> display(
-    GxEPD2_290_T94(/*CS=*/15, /*DC=*/27, /*RST=*/26, /*BUSY=*/25));
+Contact self;
+Contact loaded;
+Contact contact;
+Contact contacts[10];
 
 void setup() {
-    Serial.begin(115200);
-    hspi.begin(13, -1, 14, 15); // SCK, MISO, MOSI, CS
-    display.epd2.selectSPI(hspi, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-    
-    display.init(115200);
-    display.clearScreen();
-    
-    display.setRotation(1);
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setTextColor(GxEPD_BLACK);
-    
-    display.setFullWindow();
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        display.setCursor(10, 30);
-        display.print("Hello fur!");
-    } while (display.nextPage());
-    
-    Serial.println("done");
+  Serial.begin(115200);
+  delay(1000);
+
+  if (!storageInit()) {
+    Serial.println("storage init failed");
+    return;
+  }
+  Serial.println("storage init ok");
+
+  strlcpy(self.username, "wolfram_test", USERNAME_LEN);
+  strlcpy(self.url, "t.me/wolfram_test", URL_LEN);
+  memset(self.avatar, 0xAA, AVATAR_LEN);
+
+  if (storageSaveSelf(self)) Serial.println("save self ok");
+  else Serial.println("save self failed");
+
+  memset(&loaded, 0, sizeof(loaded));
+  if (storageLoadSelf(loaded)) {
+    Serial.print("username: ");
+    Serial.println(loaded.username);
+    Serial.print("url: ");
+    Serial.println(loaded.url);
+    Serial.print("avatar[0]: 0x");
+    Serial.println(loaded.avatar[0], HEX);
+  } else {
+    Serial.println("load self failed");
+  }
+
+  strlcpy(contact.username, "friend_furry", USERNAME_LEN);
+  strlcpy(contact.url, "instagram.com/friend_furry", URL_LEN);
+  memset(contact.avatar, 0xBB, AVATAR_LEN);
+
+  if (storageSaveContact(contact)) Serial.println("save contact ok");
+  else Serial.println("save contact failed");
+
+  int count = storageLoadContacts(contacts, 10);
+  Serial.print("contact count: ");
+  Serial.println(count);
+  for (int i = 0; i < count; i++) {
+    Serial.print("contact[");
+    Serial.print(i);
+    Serial.print("]: ");
+    Serial.print(contacts[i].username);
+    Serial.print(" | ");
+    Serial.println(contacts[i].url);
+  }
 }
 
 void loop() {}

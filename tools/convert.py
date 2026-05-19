@@ -61,6 +61,35 @@ def convert(input_path: str, output_path: str, size: tuple = (128, 128)):
 
     return result
 
+def convert_pixel(input_path: str, output_path: str, size: tuple = (64, 64)):
+    """像素画风格：先缩小到1/4再放大，产生像素格子感，然后抖动转黑白"""
+    img = Image.open(input_path).convert("RGB")
+
+    # 裁剪正方形
+    w, h = img.size
+    min_side = min(w, h)
+    left = (w - min_side) // 2
+    top = (h - min_side) // 2
+    img = img.crop((left, top, left + min_side, top + min_side))
+
+    # 先缩到很小
+    small_size = (size[0] // 4, size[1] // 4)
+    img = img.resize(small_size, Image.LANCZOS)
+
+    # 放大回目标尺寸，用NEAREST保留像素感
+    img = img.resize(size, Image.NEAREST)
+
+    # 转灰度
+    img_gray = np.array(img.convert("L"))
+
+    # Floyd-Steinberg抖动
+    img_dithered = floyd_steinberg_dither(img_gray)
+
+    result = Image.fromarray(img_dithered, mode="L")
+    result.save(output_path)
+    print(f"已保存: {output_path}")
+    return result
+
 def convert_qr(input_path: str, output_path: str, size: tuple = (128, 128)):
     """QR码转换：直接阈值二值化，不使用抖动"""
     img = Image.open(input_path).convert("L")
@@ -81,21 +110,34 @@ def convert_qr(input_path: str, output_path: str, size: tuple = (128, 128)):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法:")
-        print("  头像: python3 convert.py --dither <input> [output.png]")
-        print("  QR码: python3 convert.py --qr <input> [output.png]")
+        print("  头像抖动: python3 convert.py --dither <input> [output.png] [WxH]")
+        print("  像素画:   python3 convert.py --pixel <input> [output.png] [WxH]")
+        print("  QR码:     python3 convert.py --qr <input> [output.png] [WxH]")
         sys.exit(1)
 
     mode = sys.argv[1]
-    if mode not in ("--dither", "--qr") or len(sys.argv) < 3:
+    if mode not in ("--dither", "--qr", "--pixel") or len(sys.argv) < 3:
         print("用法:")
-        print("  头像: python3 convert.py --dither <input> [output.png]")
-        print("  QR码: python3 convert.py --qr <input> [output.png]")
+        print("  头像抖动: python3 convert.py --dither <input> [output.png] [WxH]")
+        print("  像素画:   python3 convert.py --pixel <input> [output.png] [WxH]")
+        print("  QR码:     python3 convert.py --qr <input> [output.png] [WxH]")
         sys.exit(1)
 
     input_path = sys.argv[2]
     output_path = sys.argv[3] if len(sys.argv) > 3 else "output.png"
 
+    # 可选尺寸参数，格式: WxH，例如 64x64
+    size = (128, 128)
+    if len(sys.argv) > 4:
+        try:
+            w, h = sys.argv[4].lower().split("x")
+            size = (int(w), int(h))
+        except:
+            print(f"尺寸格式错误，使用默认128x128")
+
     if mode == "--dither":
-        convert(input_path, output_path)
+        convert(input_path, output_path, size)
+    elif mode == "--pixel":
+        convert_pixel(input_path, output_path, size)
     elif mode == "--qr":
-        convert_qr(input_path, output_path)
+        convert_qr(input_path, output_path, size)
