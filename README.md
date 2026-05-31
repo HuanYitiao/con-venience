@@ -1,35 +1,41 @@
 # con-venience
 
 [![Build Firmware](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml/badge.svg)](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml)
+![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue)
+![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 > *Ubi amici, ibi opes.* — Plautus
 > Where there are friends, there is wealth.
 
-> *Ever hit it off with another fursuiter, only to realize — you can't unlock your phone through mesh eyes, can't type with paws on, and definitely don't want to break the magic by de-suiting just to swap contacts?*
->
-> **con-venience** solves that. Two wrists touch. Done.
+---
 
-<!-- TODO: insert demo video here -->
-<!-- TODO: insert hero image / hand-drawn sketch here -->
+Ever hit it off with another fursuiter, only to realize — you can't unlock your phone through mesh eyes, can't type with paws on, and definitely don't want to break the magic by de-suiting just to swap contacts?
+
+**con-venience** has one answer: touch wrists.
 
 ---
 
 ## What it does
 
-**con-venience** is an open-source wearable social device for fursuit conventions. It lives on your forearm like a watch and handles contact exchange so you never have to reach for your phone.
+**con-venience** is a wearable social device built for furry conventions. Watch-sized. Lives on your forearm. Handles everything your phone can't while you're suited up.
 
-| Scenario | How it works |
+| Scenario | What happens |
 |---|---|
-| 🐾 Fursuiter meets fursuiter | Press devices together → Telegram handles exchange automatically via **ACOM** (physical contact protocol) |
-| 📱 Attendee meets fursuiter | Scan QR code on display → opens Telegram/YouTube instantly |
-| 🎉 Group meetup | BLE pairing window opens for bulk contact exchange |
-| 😴 Standing by | E-ink display shows your QR code / handles with near-zero power draw |
+| 🐾 Two fursuiters meet | Wrists touch → ACOM protocol exchanges Telegram handles automatically |
+| 📱 Attendee wants to add you | They scan the QR code on your display → straight to your profile |
 
-### ACOM — the signature interaction
+---
 
-ACOM (Asymmetric Contact Over Metal) is a single-wire half-duplex UART protocol over two exposed metal contact pads, guided by side magnets with opposite polarity. When two devices touch, they handshake and exchange usernames — no pairing, no menus, no fumbling.
+## ACOM — the signature interaction
 
-This is the interaction that makes **con-venience** worth wearing.
+**ACOM (Asymmetric Contact Over Metal)** is the heart of the project.
+
+Two exposed metal contact pads. Opposite-polarity magnets for alignment. When two devices touch, they handshake and exchange usernames — no Bluetooth pairing screen, no menus, no "can you unlock my phone real quick."
+
+This is why the device exists.
+
+**Under the hood:** single-wire half-duplex UART via 74HC126 tri-state buffer, 9600 baud, magic byte handshake + randomized backoff collision avoidance.
 
 ---
 
@@ -37,12 +43,31 @@ This is the interaction that makes **con-venience** worth wearing.
 
 | Component | Choice | Why |
 |---|---|---|
-| MCU | ESP32-S3-Zero (TBD)| BLE + native USB + enough GPIO |
-| Display | 2.9" Waveshare e-ink, 296×128px | Sunlight readable, ~0mW standby |
-| Audio | Passive piezo buzzer (PWM) | Game Boy–style feedback tones |
-| Power | CR2450 coin cell (TBD)| 18h+ convention day on a single cell |
+| MCU | ESP32-C6-devkit | BLE + native USB + enough GPIO |
+| Display | 2.9" screen, 256×128px | Special style profiles |
+| Audio | MP3 module | Game Boy–style feedback tones, light and simple |
+| Battery | 3× AA Eneloop NiMH | 18h+ target — covers a full convention day |
+| Contact comm | Metal pads + 74HC126 | The physical layer of ACOM |
 
-**Form factor:** wrist-worn, forearm mount, watch-like profile. Designed around the constraint that gloved paws can't do precise button presses — a single short press cycles display pages; a long press triggers pairing mode.
+**Form factor:** wrist-worn, watch profile. Designed around one hard constraint: gloved paws can't do precise button presses. One large pairing button. Everything else happens automatically.
+
+---
+
+## Firmware architecture
+
+```
+firmware/platformIO/con-venience/
+├── src/
+│   └── main.cpp          # thin glue layer, state machine entry point
+├── lib/
+│   ├── fsm/              # finite state machine (Idle / Pairing / Contact card / Menu)
+│   ├── storage/          # LittleFS + JSON contact storage
+│   ├── input/            # button handling
+│   └── acom/             # contact communication protocol (in progress)
+└── platformio.ini
+```
+
+Modular by design. Each subsystem is its own library under `lib/`. `main.cpp` connects things; it doesn't contain logic.
 
 ---
 
@@ -50,58 +75,50 @@ This is the interaction that makes **con-venience** worth wearing.
 
 ```
 [x] Hardware architecture finalized
-[x] Component selection complete
-[x] Buzzer / melody playback — integrated
-[~] e-ink display — tested standalone, not yet merged into main firmware
-[~] BLE — tested standalone, not yet merged into main firmware
-[~] Button input — tested standalone, not yet merged into main firmware
-[ ] ACOM — waiting on hardware materials
-[ ] u8g2 UI implementation (QR page, contacts list, pairing animation)
-[ ] PCB v1 — target: small convention demo, October
-[ ] Community hardware kit release — target: February
+[x] Storage module (lib/storage) — complete and tested
+[x] State machine (lib/fsm) — complete and tested
+[x] Button input (lib/input) — complete
+[x] CI (GitHub Actions) — Arduino + PlatformIO dual build
+[~] ACOM protocol — single-wire comms validated, library integration in progress
+[~] Display module — u8g2 confirmed, UI implementation in progress
+[ ] PCB v1 — target: October, small convention demo
+[ ] Community hardware kit — target: February
 ```
 
-`[~]` = tested, pending integration
+`[~]` = validated, pending integration
 
 ---
 
 ## Getting started
----
 
-## Architecture
+**Requirements:**
+- VS Code + PlatformIO extension
+- That's it.
 
-```
-con-venience/
-├── firmware/
-│   └── platformIO/con-venience/   # Main firmware (Arduino framework via PlatformIO)
-│       ├── src/
-│       │   ├── main.cpp           # Entry point, page state machine
-│       └── platformio.ini
-├── hardware/                      # Schematics, PCB files (KiCad)
-├── tools/                         # Helper scripts for contributors
-│   └── image-convert/             # Convert images to e-ink compatible format
-├── ui/                            # UI layout references (Figma exports, mockups)
-└── docs/                          # Documentation
+```bash
+git clone https://github.com/HuanYitiao/con-venience
+cd con-venience/firmware/platformIO/con-venience
+# Open in VS Code — PlatformIO handles the toolchain automatically
 ```
 
-If you've never touched embedded before, the PlatformIO project opens straight in VS Code — no manual toolchain setup.
+No embedded experience required. PlatformIO sets everything up. If you can read Arduino or Python, you can read this codebase.
 
 ---
 
 ## Contributing
 
-The furry community has a lot of programmers. This project is designed for them.
+The furry community has a lot of programmers. This project is built for them.
 
 **Good first contributions:**
-- New display pages (additional QR codes, custom layouts)
-- BLE companion app features
+- New display pages (extra QR codes, custom layouts)
 - Documentation and translations
+- Convention schedule / alert features
 
 **Hardware contributions:**
 - PCB design review
 - Alternative form factors
 
-If you want to contribute but aren't sure where to start, open an issue and say hi.
+Not sure where to start? Open an issue and say hi.
 
 ---
 
@@ -110,12 +127,13 @@ If you want to contribute but aren't sure where to start, open an issue and say 
 - **Now:** Breadboard prototype, ACOM validation, core UI
 - **October:** PCB v1, small convention demo
 - **February:** Community hardware kit launch
-- **Future:** Fursuit companion
+- **Future:** Full fursuit companion platform
 
 ---
 
 ## Vision
-**con-venience** is designed to grow into a full fursuit companion — a wearable assistant for the entire convention day, not just contact exchange. With community involvement, future versions could include panel schedule alerts so you never miss an event while suited, body temperature and humidity monitoring to help you stay safe inside a fursuit, and integrations with convention apps, social platforms, and whatever the community decides to build next.
+
+con-venience is designed to grow into a full fursuit companion — covering the entire convention day, not just contact exchange. Panel schedule alerts so you never miss an event while suited. Body temperature and humidity monitoring to keep you safe. Integrations with convention apps, social platforms, and whatever the community decides to build next.
 
 The hardware is a platform. What runs on it is up to everyone.
 
