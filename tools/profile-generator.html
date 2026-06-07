@@ -13,7 +13,7 @@
     --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
   }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; min-height: 100vh; padding: 2rem 1rem 4rem; }
-  .container { max-width: 680px; margin: 0 auto; }
+  .container { max-width: 720px; margin: 0 auto; }
   header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
   .logo { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.5rem; }
   h1 { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
@@ -36,6 +36,13 @@
   .crop-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
   #crop-canvas { display: block; width: 100%; border: 1px solid var(--border); border-radius: 4px; user-select: none; }
   .crop-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+  /* mode/algo selector */
+  .option-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .opt-btn { font-family: var(--mono); font-size: 11px; padding: 4px 12px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-hi); background: transparent; color: var(--muted); transition: all 0.15s; white-space: nowrap; }
+  .opt-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+  .opt-btn.active { border-color: var(--accent-dim); color: var(--accent); background: rgba(200,240,80,0.08); }
+
   .preview-grid { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 1rem; }
   .preview-grid.visible { display: grid; }
   .preview-box { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
@@ -46,10 +53,13 @@
   .invert-btn { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-hi); background: transparent; color: var(--muted); transition: all 0.15s; white-space: nowrap; }
   .invert-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
   .invert-btn.active { border-color: var(--accent-dim); color: var(--accent); background: rgba(200,240,80,0.08); }
-  .contrast-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-  .contrast-row label { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
-  .contrast-row input[type=range] { flex: 1; accent-color: var(--accent); }
-  .contrast-val { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 28px; text-align: right; }
+  .controls-panel { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); }
+  .ctrl-row { display: flex; align-items: center; gap: 10px; }
+  .ctrl-row label { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 60px; }
+  .ctrl-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .ctrl-val { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 28px; text-align: right; }
+  .mode-info { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 10px 6px; }
+
   .btn-row { display: flex; gap: 10px; margin-top: 2rem; }
   button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border-hi); background: transparent; color: var(--text); }
   button:hover { border-color: var(--accent-dim); color: var(--accent); }
@@ -74,23 +84,15 @@
   <div class="section">
     <div class="section-label">identity</div>
     <div class="fields">
-      <div class="field">
-        <label>uuid</label>
-        <input type="text" id="uuid" placeholder="A3F9" maxlength="4">
-      </div>
-      <div class="field">
-        <label>username</label>
-        <input type="text" id="username" placeholder="Wolfram" maxlength="31">
-      </div>
-      <div class="field">
-        <label>url</label>
-        <input type="text" id="url" placeholder="t.me/WolframLiu" maxlength="127">
-      </div>
+      <div class="field"><label>uuid</label><input type="text" id="uuid" placeholder="A3F9" maxlength="4"></div>
+      <div class="field"><label>username</label><input type="text" id="username" placeholder="Wolfram" maxlength="31"></div>
+      <div class="field"><label>url</label><input type="text" id="url" placeholder="t.me/WolframLiu" maxlength="127"></div>
     </div>
   </div>
 
   <div class="section">
     <div class="section-label">avatar</div>
+
     <div class="upload-zone" id="upload-zone">
       <input type="file" id="file-input" accept="image/*">
       <div class="upload-icon">⬆</div>
@@ -98,7 +100,7 @@
     </div>
 
     <div id="crop-stage">
-      <div class="crop-hint">inside selection: drag to move · outside: draw new</div>
+      <div class="crop-hint">corner: resize · inside: move · outside: redraw</div>
       <canvas id="crop-canvas"></canvas>
       <div class="crop-actions">
         <button id="btn-confirm-crop">confirm crop</button>
@@ -113,16 +115,45 @@
       </div>
       <div class="preview-box">
         <div class="preview-box-label">
-          <span>dithered · 64×64</span>
+          <span id="preview-label">output</span>
           <button class="invert-btn" id="btn-invert">invert</button>
         </div>
         <div class="oled-sim">
           <canvas id="canvas-dither" width="64" height="64"></canvas>
         </div>
-        <div class="contrast-row" style="padding: 8px 10px;">
-          <label>contrast</label>
-          <input type="range" id="contrast-slider" min="0.5" max="3" step="0.05" value="1">
-          <span class="contrast-val" id="contrast-val">1.0</span>
+        <div class="controls-panel">
+          <div class="ctrl-row">
+            <label>resolution</label>
+            <div class="option-row" style="margin:0">
+              <button class="opt-btn active" data-res="64">64×64</button>
+              <button class="opt-btn" data-res="128">128×128</button>
+            </div>
+          </div>
+          <div class="ctrl-row">
+            <label>mode</label>
+            <div class="option-row" style="margin:0" id="mode-btns">
+              <button class="opt-btn active" data-mode="1bit">1-bit</button>
+              <button class="opt-btn" data-mode="4gray">4-level gray</button>
+            </div>
+          </div>
+          <div class="ctrl-row">
+            <label>algorithm</label>
+            <div class="option-row" style="margin:0" id="algo-btns">
+              <button class="opt-btn active" data-algo="fs">Floyd-Steinberg</button>
+              <button class="opt-btn" data-algo="atkinson">Atkinson</button>
+              <button class="opt-btn" data-algo="bayer4">Bayer 4×4</button>
+              <button class="opt-btn" data-algo="bayer8">Bayer 8×8</button>
+              <button class="opt-btn" data-algo="halftone">Halftone</button>
+              <button class="opt-btn" data-algo="sobel">Sobel + FS</button>
+              <button class="opt-btn" data-algo="unsharp">Unsharp + Atkinson</button>
+            </div>
+          </div>
+          <div class="ctrl-row">
+            <label>contrast</label>
+            <input type="range" id="contrast-slider" min="0.5" max="3" step="0.05" value="1">
+            <span class="ctrl-val" id="contrast-val">1.0</span>
+          </div>
+          <div class="mode-info" id="mode-info">512 bytes · 1-bit packed MSB · Floyd-Steinberg</div>
         </div>
       </div>
     </div>
@@ -143,18 +174,23 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// ── state ─────────────────────────────────────────────
 let sourceImg = null;
-let ditherData = null;
+let processedData = null; // output of current algorithm
 let inverted = false;
 let contrastVal = 1.0;
-let grayBase = null; // gray array before contrast, reused on slider change
+let grayBase = null;      // raw gray, full resolution, before contrast
+let currentRes = 64;      // 64 or 128
+let currentMode = '1bit'; // '1bit' | '4gray'
+let currentAlgo = 'fs';   // 'fs' | 'atkinson' | 'bayer'
 
+// crop state
 let crop = { x: 0, y: 0, size: 0 };
-// drag mode: 'draw' | 'move'
 let dragMode = null;
 let dragStart = { x: 0, y: 0 };
 let cropAtDragStart = null;
 let bgBitmap = null;
+const HANDLE_R = 16;
 
 // ── uuid ──────────────────────────────────────────────
 $('uuid').addEventListener('input', function() {
@@ -170,7 +206,9 @@ zone.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   if (f && f.type.startsWith('image/')) loadFile(f);
 });
-$('file-input').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+$('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) { loadFile(e.target.files[0]); e.target.value = ''; }
+});
 
 function loadFile(file) {
   const reader = new FileReader();
@@ -205,12 +243,11 @@ function initCrop() {
   $('crop-stage').classList.add('visible');
   $('preview-grid').classList.remove('visible');
   $('btn-generate').disabled = true;
-  ditherData = null; grayBase = null;
-  inverted = false; contrastVal = 1.0;
+  processedData = null; grayBase = null;
+  inverted = false;
   $('btn-invert').classList.remove('active');
-  $('contrast-slider').value = 1;
-  $('contrast-val').textContent = '1.0';
-  setStatus('inside selection: drag to move · outside: draw new', '');
+  $('contrast-slider').value = 1; $('contrast-val').textContent = '1.0'; contrastVal = 1.0;
+  setStatus('adjust crop then confirm', '');
 }
 
 // ── crop draw ─────────────────────────────────────────
@@ -227,7 +264,7 @@ function drawCrop() {
   ctx.drawImage(bgBitmap, x, y, size, size, x, y, size, size);
   ctx.strokeStyle = '#c8f050'; ctx.lineWidth = 1.5;
   ctx.strokeRect(x + 0.75, y + 0.75, size - 1.5, size - 1.5);
-  const h = 12; ctx.lineWidth = 2.5;
+  const h = 12; ctx.lineWidth = 2.5; ctx.strokeStyle = '#c8f050';
   [[x,y,1,1],[x+size,y,-1,1],[x,y+size,1,-1],[x+size,y+size,-1,-1]].forEach(([cx,cy,dx,dy]) => {
     ctx.beginPath(); ctx.moveTo(cx+dx*h,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+dy*h); ctx.stroke();
   });
@@ -237,41 +274,30 @@ function drawCrop() {
 function getPos(e) {
   const c = $('crop-canvas');
   const rect = c.getBoundingClientRect();
-  const scaleX = c.width / rect.width;
-  const scaleY = c.height / rect.height;
-  return { x: Math.round((e.clientX - rect.left) * scaleX), y: Math.round((e.clientY - rect.top) * scaleY) };
+  return { x: Math.round((e.clientX - rect.left) * (c.width / rect.width)),
+           y: Math.round((e.clientY - rect.top)  * (c.height / rect.height)) };
 }
 
-const HANDLE_R = 16; // px hit radius for corner handles
-
-// returns which corner the point is near, or null
-// corners: 'tl','tr','bl','br'
 function nearCorner(p) {
   if (crop.size < 4) return null;
   const { x, y, size } = crop;
-  const corners = { tl:[x,y], tr:[x+size,y], bl:[x,y+size], br:[x+size,y+size] };
-  for (const [name,[cx,cy]] of Object.entries(corners)) {
+  for (const [name,[cx,cy]] of Object.entries({tl:[x,y],tr:[x+size,y],bl:[x,y+size],br:[x+size,y+size]}))
     if (Math.abs(p.x-cx) <= HANDLE_R && Math.abs(p.y-cy) <= HANDLE_R) return name;
-  }
   return null;
 }
-
 function insideCrop(p) {
   return p.x > crop.x+HANDLE_R && p.x < crop.x+crop.size-HANDLE_R
       && p.y > crop.y+HANDLE_R && p.y < crop.y+crop.size-HANDLE_R;
 }
-
-// anchor point for resize (opposite corner, stays fixed)
-let resizeAnchor = { x: 0, y: 0 };
-
 function cursorForPos(p) {
   const c = nearCorner(p);
-  if (c === 'tl' || c === 'br') return 'nwse-resize';
-  if (c === 'tr' || c === 'bl') return 'nesw-resize';
+  if (c==='tl'||c==='br') return 'nwse-resize';
+  if (c==='tr'||c==='bl') return 'nesw-resize';
   if (insideCrop(p)) return 'grab';
   return 'crosshair';
 }
 
+let resizeAnchor = { x:0, y:0 };
 const cc = $('crop-canvas');
 
 cc.addEventListener('mousedown', e => {
@@ -279,225 +305,474 @@ cc.addEventListener('mousedown', e => {
   const p = getPos(e);
   const corner = nearCorner(p);
   if (corner) {
-    dragMode = 'resize';
-    dragStart = p;
-    cropAtDragStart = { ...crop };
-    // anchor = opposite corner in canvas coords
+    dragMode = 'resize'; dragStart = p; cropAtDragStart = { ...crop };
     const { x, y, size } = crop;
-    resizeAnchor = {
-      tl: { x: x+size, y: y+size },
-      tr: { x: x,      y: y+size },
-      bl: { x: x+size, y: y      },
-      br: { x: x,      y: y      },
-    }[corner];
+    resizeAnchor = { tl:{x:x+size,y:y+size}, tr:{x,y:y+size}, bl:{x:x+size,y}, br:{x,y} }[corner];
     cc.style.cursor = cursorForPos(p);
   } else if (crop.size > 4 && insideCrop(p)) {
-    dragMode = 'move';
-    dragStart = p;
-    cropAtDragStart = { ...crop };
-    cc.style.cursor = 'grabbing';
+    dragMode = 'move'; dragStart = p; cropAtDragStart = { ...crop }; cc.style.cursor = 'grabbing';
   } else {
-    dragMode = 'draw';
-    dragStart = p;
-    crop = { x: p.x, y: p.y, size: 0 };
-    cc.style.cursor = 'crosshair';
+    dragMode = 'draw'; dragStart = p; crop = { x:p.x, y:p.y, size:0 }; cc.style.cursor = 'crosshair';
   }
 });
 
 cc.addEventListener('mousemove', e => {
   const p = getPos(e);
   const c = $('crop-canvas');
-
-  if (!dragMode) {
-    cc.style.cursor = cursorForPos(p);
-    return;
-  }
-
+  if (!dragMode) { cc.style.cursor = cursorForPos(p); return; }
   if (dragMode === 'resize') {
-    // new size = distance from anchor to mouse, keep square
-    let dx = p.x - resizeAnchor.x;
-    let dy = p.y - resizeAnchor.y;
-    let size = Math.max(Math.abs(dx), Math.abs(dy), 4);
-    let nx = Math.min(resizeAnchor.x, p.x < resizeAnchor.x ? resizeAnchor.x - size : resizeAnchor.x);
-    let ny = Math.min(resizeAnchor.y, p.y < resizeAnchor.y ? resizeAnchor.y - size : resizeAnchor.y);
-    // if anchor is left side, box grows left from anchor
-    nx = resizeAnchor.x < (cropAtDragStart.x + cropAtDragStart.size/2) ? resizeAnchor.x : resizeAnchor.x - size;
-    ny = resizeAnchor.y < (cropAtDragStart.y + cropAtDragStart.size/2) ? resizeAnchor.y : resizeAnchor.y - size;
-    // clamp
+    let size = Math.max(Math.abs(p.x - resizeAnchor.x), Math.abs(p.y - resizeAnchor.y), 4);
+    let nx = resizeAnchor.x < (cropAtDragStart.x + cropAtDragStart.size/2) ? resizeAnchor.x : resizeAnchor.x - size;
+    let ny = resizeAnchor.y < (cropAtDragStart.y + cropAtDragStart.size/2) ? resizeAnchor.y : resizeAnchor.y - size;
     if (nx < 0) { size += nx; nx = 0; }
     if (ny < 0) { size += ny; ny = 0; }
-    if (nx + size > c.width)  size = c.width - nx;
-    if (ny + size > c.height) size = c.height - ny;
-    size = Math.max(4, size);
-    crop = { x: nx, y: ny, size };
+    if (nx+size > c.width)  size = c.width - nx;
+    if (ny+size > c.height) size = c.height - ny;
+    crop = { x:nx, y:ny, size:Math.max(4,size) };
   } else if (dragMode === 'move') {
-    const dx = p.x - dragStart.x;
-    const dy = p.y - dragStart.y;
-    let nx = cropAtDragStart.x + dx;
-    let ny = cropAtDragStart.y + dy;
-    nx = Math.max(0, Math.min(nx, c.width - crop.size));
-    ny = Math.max(0, Math.min(ny, c.height - crop.size));
-    crop = { x: nx, y: ny, size: crop.size };
+    let nx = Math.max(0, Math.min(cropAtDragStart.x + p.x - dragStart.x, c.width  - crop.size));
+    let ny = Math.max(0, Math.min(cropAtDragStart.y + p.y - dragStart.y, c.height - crop.size));
+    crop = { x:nx, y:ny, size:crop.size };
   } else {
-    // draw
-    let dx = p.x - dragStart.x;
-    let dy = p.y - dragStart.y;
-    let size = Math.min(Math.abs(dx), Math.abs(dy));
-    let x = dx >= 0 ? dragStart.x : dragStart.x - size;
-    let y = dy >= 0 ? dragStart.y : dragStart.y - size;
-    if (x < 0) { size += x; x = 0; }
-    if (y < 0) { size += y; y = 0; }
-    if (x + size > c.width)  size = c.width - x;
-    if (y + size > c.height) size = c.height - y;
-    crop = { x, y, size: Math.max(0, size) };
+    let dx=p.x-dragStart.x, dy=p.y-dragStart.y;
+    let size=Math.min(Math.abs(dx),Math.abs(dy));
+    let x=dx>=0?dragStart.x:dragStart.x-size, y=dy>=0?dragStart.y:dragStart.y-size;
+    if(x<0){size+=x;x=0;} if(y<0){size+=y;y=0;}
+    if(x+size>c.width) size=c.width-x; if(y+size>c.height) size=c.height-y;
+    crop={x,y,size:Math.max(0,size)};
   }
   drawCrop();
 });
 
-function stopDrag() {
-  dragMode = null;
-  cc.style.cursor = 'crosshair';
-}
+function stopDrag() { dragMode=null; cc.style.cursor='crosshair'; }
 cc.addEventListener('mouseup', stopDrag);
 cc.addEventListener('mouseleave', stopDrag);
 
 $('btn-reset-crop').addEventListener('click', () => {
-  const c = $('crop-canvas');
-  const defSize = Math.round(Math.min(c.width, c.height) * 0.8);
-  crop = { x: Math.round((c.width - defSize) / 2), y: Math.round((c.height - defSize) / 2), size: defSize };
+  const c=$('crop-canvas'), defSize=Math.round(Math.min(c.width,c.height)*0.8);
+  crop={x:Math.round((c.width-defSize)/2),y:Math.round((c.height-defSize)/2),size:defSize};
   drawCrop();
 });
 
 $('btn-confirm-crop').addEventListener('click', () => {
-  if (!sourceImg || crop.size < 4) { setStatus('draw a crop area first', 'err'); return; }
-  const c = $('crop-canvas');
-  const sx = crop.x * (sourceImg.width / c.width);
-  const sy = crop.y * (sourceImg.height / c.height);
-  const ss = crop.size * (sourceImg.width / c.width);
+  if (!sourceImg || crop.size < 4) { setStatus('draw a crop area first','err'); return; }
+  const c=$('crop-canvas');
+  const sx=crop.x*(sourceImg.width/c.width), sy=crop.y*(sourceImg.height/c.height);
+  const ss=crop.size*(sourceImg.width/c.width);
 
-  const origC = $('canvas-orig');
-  origC.width = 200; origC.height = 200;
-  origC.getContext('2d').drawImage(sourceImg, sx, sy, ss, ss, 0, 0, 200, 200);
+  const origC=$('canvas-orig'); origC.width=200; origC.height=200;
+  origC.getContext('2d').drawImage(sourceImg,sx,sy,ss,ss,0,0,200,200);
 
-  grayBase = cropToGray64(sourceImg, sx, sy, ss);
-  runDither();
+  grayBase = cropToGray(sourceImg, sx, sy, ss, 128); // always extract at 128, downscale if needed
+  runProcess();
 
   $('crop-stage').classList.remove('visible');
   $('preview-grid').classList.add('visible');
   $('btn-generate').disabled = false;
-  setStatus('avatar ready — re-upload to crop again', 'ok');
+  setStatus('avatar ready — re-upload to crop again','ok');
 });
 
-// ── contrast + dither ─────────────────────────────────
-function applyContrast(gray, c) {
-  // midpoint contrast: stretch around 128
-  const out = new Float32Array(gray.length);
-  for (let i = 0; i < gray.length; i++) {
-    let v = (gray[i] - 128) * c + 128;
-    out[i] = Math.max(0, Math.min(255, v));
-  }
-  return out;
-}
+// ── option buttons ────────────────────────────────────
+document.querySelectorAll('[data-res]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-res]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRes = parseInt(btn.dataset.res);
+    // 4gray only available at 128
+    if (currentRes === 64 && currentMode === '4gray') {
+      currentMode = '1bit';
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+      document.querySelector('[data-mode="1bit"]').classList.add('active');
+    }
+    document.querySelector('[data-mode="4gray"]').style.opacity = currentRes === 64 ? '0.3' : '1';
+    document.querySelector('[data-mode="4gray"]').style.pointerEvents = currentRes === 64 ? 'none' : 'auto';
+    if (grayBase) runProcess();
+  });
+});
 
-function runDither() {
-  const gray = applyContrast(grayBase, contrastVal);
-  ditherData = floydSteinberg(gray);
-  renderDither(ditherData, inverted);
-}
+document.querySelectorAll('[data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    if (grayBase) runProcess();
+  });
+});
+
+document.querySelectorAll('[data-algo]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-algo]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentAlgo = btn.dataset.algo;
+    if (grayBase) runProcess();
+  });
+});
 
 $('contrast-slider').addEventListener('input', function() {
   contrastVal = parseFloat(this.value);
   $('contrast-val').textContent = contrastVal.toFixed(1);
-  if (grayBase) runDither();
+  if (grayBase) runProcess();
 });
 
-// ── invert ────────────────────────────────────────────
 $('btn-invert').addEventListener('click', () => {
   inverted = !inverted;
   $('btn-invert').classList.toggle('active', inverted);
-  if (ditherData) renderDither(ditherData, inverted);
+  if (processedData) renderPreview(processedData);
 });
 
 // ── image processing ──────────────────────────────────
-function cropToGray64(img, sx, sy, ss) {
+function cropToGray(img, sx, sy, ss, size) {
   const tmp = document.createElement('canvas');
-  tmp.width = 64; tmp.height = 64;
-  tmp.getContext('2d').drawImage(img, sx, sy, ss, ss, 0, 0, 64, 64);
-  const data = tmp.getContext('2d').getImageData(0, 0, 64, 64).data;
-  const gray = new Float32Array(64 * 64);
-  for (let i = 0; i < 64 * 64; i++)
-    gray[i] = 0.299 * data[i*4] + 0.587 * data[i*4+1] + 0.114 * data[i*4+2];
+  tmp.width = size; tmp.height = size;
+  tmp.getContext('2d').drawImage(img, sx, sy, ss, ss, 0, 0, size, size);
+  const data = tmp.getContext('2d').getImageData(0, 0, size, size).data;
+  const gray = new Float32Array(size * size);
+  for (let i = 0; i < size * size; i++)
+    gray[i] = 0.299*data[i*4] + 0.587*data[i*4+1] + 0.114*data[i*4+2];
   return gray;
 }
 
-function floydSteinberg(gray) {
-  const img = new Float32Array(gray);
-  for (let y = 0; y < 64; y++) {
-    for (let x = 0; x < 64; x++) {
-      const idx = y * 64 + x;
-      const old = img[idx];
-      const nw = old < 128 ? 0 : 255;
-      img[idx] = nw;
-      const err = old - nw;
-      if (x + 1 < 64)       img[idx + 1]  += err * 7 / 16;
-      if (y + 1 < 64) {
-        if (x - 1 >= 0)     img[idx + 63] += err * 3 / 16;
-                             img[idx + 64] += err * 5 / 16;
-        if (x + 1 < 64)     img[idx + 65] += err * 1 / 16;
-      }
-    }
-  }
-  const out = new Uint8Array(64 * 64);
-  for (let i = 0; i < out.length; i++) out[i] = img[i] < 128 ? 0 : 255;
+function applyContrast(gray, c) {
+  const out = new Float32Array(gray.length);
+  for (let i = 0; i < gray.length; i++)
+    out[i] = Math.max(0, Math.min(255, (gray[i]-128)*c+128));
   return out;
 }
 
-function renderDither(data, inv) {
-  const c = $('canvas-dither');
-  const ctx = c.getContext('2d');
-  const id = ctx.createImageData(64, 64);
-  for (let i = 0; i < 64 * 64; i++) {
-    const v = inv ? 255 - data[i] : data[i];
-    id.data[i*4] = v; id.data[i*4+1] = v; id.data[i*4+2] = v; id.data[i*4+3] = 255;
-  }
-  ctx.putImageData(id, 0, 0);
+function histogramEqualize(gray) {
+  const n = gray.length;
+  const hist = new Float32Array(256);
+  for (let i = 0; i < n; i++) hist[Math.round(gray[i])]++;
+  const cdf = new Float32Array(256);
+  cdf[0] = hist[0];
+  for (let i = 1; i < 256; i++) cdf[i] = cdf[i-1] + hist[i];
+  const cdfMin = cdf.find(v => v > 0);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++)
+    out[i] = Math.round((cdf[Math.round(gray[i])] - cdfMin) / (n - cdfMin) * 255);
+  return out;
 }
 
-// ── pack + generate ───────────────────────────────────
-function packBits(data, inv) {
-  const bytes = new Uint8Array(512);
-  for (let i = 0; i < 64 * 64; i++) {
-    const black = inv ? data[i] === 255 : data[i] === 0;
-    if (black) bytes[i >> 3] |= (1 << (7 - (i & 7)));
+function downsample(gray128, size) {
+  if (size === 128) return gray128;
+  // average 2x2 blocks
+  const out = new Float32Array(size * size);
+  const ratio = 128 / size;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let sum = 0, count = 0;
+      for (let dy = 0; dy < ratio; dy++)
+        for (let dx = 0; dx < ratio; dx++) {
+          const sy = Math.floor(y*ratio+dy), sx = Math.floor(x*ratio+dx);
+          if (sy < 128 && sx < 128) { sum += gray128[sy*128+sx]; count++; }
+        }
+      out[y*size+x] = sum/count;
+    }
+  }
+  return out;
+}
+
+function floydSteinberg(gray, size) {
+  const img = new Float32Array(gray);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx = y*size+x, old=img[idx], nw=old<128?0:255;
+      img[idx]=nw; const err=old-nw;
+      if(x+1<size)      img[idx+1]      +=err*7/16;
+      if(y+1<size){
+        if(x-1>=0)      img[idx+size-1] +=err*3/16;
+                        img[idx+size]   +=err*5/16;
+        if(x+1<size)    img[idx+size+1] +=err*1/16;
+      }
+    }
+  }
+  const out=new Uint8Array(size*size);
+  for(let i=0;i<out.length;i++) out[i]=img[i]<128?0:255;
+  return out;
+}
+
+function atkinson(gray, size) {
+  const img = new Float32Array(gray);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx=y*size+x, old=img[idx], nw=old<128?0:255;
+      img[idx]=nw; const err=(old-nw)/8;
+      const neighbors=[
+        [0,1],[0,2],[1,-1],[1,0],[1,1],[2,0]
+      ];
+      for(const [dy,dx] of neighbors){
+        const ny=y+dy,nx=x+dx;
+        if(ny>=0&&ny<size&&nx>=0&&nx<size) img[ny*size+nx]+=err;
+      }
+    }
+  }
+  const out=new Uint8Array(size*size);
+  for(let i=0;i<out.length;i++) out[i]=img[i]<128?0:255;
+  return out;
+}
+
+// Bayer 4×4
+const BAYER4 = [
+   0,136, 34,170,
+ 204, 68,238,102,
+  51,187, 17,153,
+ 255,119,221, 85
+];
+
+// Bayer 8×8
+const BAYER8 = [
+   0,128, 32,160,  8,136, 40,168,
+ 192, 64,224, 96,200, 72,232,104,
+  48,176, 16,144, 56,184, 24,152,
+ 240,112,208, 80,248,120,216, 88,
+  12,140, 44,172,  4,132, 36,164,
+ 204, 76,236,108,196, 68,228,100,
+  60,188, 28,156, 52,180, 20,148,
+ 252,124,220, 92,244,116,212, 84
+];
+
+function bayer(gray, size, matrix, msize) {
+  const out = new Uint8Array(size*size);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const threshold = matrix[(y % msize)*msize + (x % msize)];
+      out[y*size+x] = gray[y*size+x] > threshold ? 255 : 0;
+    }
+  return out;
+}
+
+function halftone(gray, size) {
+  // simulate halftone dots: divide into cells, draw filled circle proportional to darkness
+  const cellSize = 4;
+  const cells = Math.ceil(size / cellSize);
+  const out = new Uint8Array(size*size).fill(255); // white bg
+  for (let cy = 0; cy < cells; cy++) {
+    for (let cx = 0; cx < cells; cx++) {
+      // average gray in cell
+      let sum = 0, count = 0;
+      for (let dy = 0; dy < cellSize; dy++)
+        for (let dx = 0; dx < cellSize; dx++) {
+          const py = cy*cellSize+dy, px = cx*cellSize+dx;
+          if (py < size && px < size) { sum += gray[py*size+px]; count++; }
+        }
+      const avg = sum / count;
+      // radius proportional to darkness (0=black=full, 255=white=empty)
+      const darkness = 1 - avg/255;
+      const maxR = cellSize * 0.5 * 1.1; // slight overlap for dense areas
+      const r = darkness * maxR;
+      // fill circle pixels
+      const cxPx = cx*cellSize + cellSize/2;
+      const cyPx = cy*cellSize + cellSize/2;
+      for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++)
+        for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++)
+          if (dx*dx + dy*dy <= r*r) {
+            const py = Math.round(cyPx+dy), px = Math.round(cxPx+dx);
+            if (py >= 0 && py < size && px >= 0 && px < size)
+              out[py*size+px] = 0;
+          }
+    }
+  }
+  return out;
+}
+
+function sobelEdges(gray, size) {
+  const Kx = [-1,0,1,-2,0,2,-1,0,1];
+  const Ky = [-1,-2,-1,0,0,0,1,2,1];
+  const edges = new Float32Array(size*size);
+  let maxE = 0;
+  for (let y = 1; y < size-1; y++) {
+    for (let x = 1; x < size-1; x++) {
+      let gx = 0, gy = 0;
+      for (let ky = -1; ky <= 1; ky++)
+        for (let kx = -1; kx <= 1; kx++) {
+          const v = gray[(y+ky)*size+(x+kx)];
+          const ki = (ky+1)*3+(kx+1);
+          gx += Kx[ki]*v; gy += Ky[ki]*v;
+        }
+      const mag = Math.sqrt(gx*gx + gy*gy);
+      edges[y*size+x] = mag;
+      if (mag > maxE) maxE = mag;
+    }
+  }
+  // normalize
+  if (maxE > 0) for (let i = 0; i < edges.length; i++) edges[i] = edges[i]/maxE * 255;
+  return edges;
+}
+
+function sobelFS(gray, size) {
+  const edges = sobelEdges(gray, size);
+  // blend: darken original by edge strength (edges push toward black)
+  const blended = new Float32Array(size*size);
+  for (let i = 0; i < size*size; i++)
+    blended[i] = Math.max(0, gray[i] - edges[i] * 1.5);
+  return floydSteinberg(blended, size);
+}
+
+function unsharpAtkinson(gray, size) {
+  // gaussian blur (simple box blur 5×5 approximation)
+  const blurred = new Float32Array(size*size);
+  const r = 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let sum = 0, count = 0;
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          const ny = y+dy, nx = x+dx;
+          if (ny >= 0 && ny < size && nx >= 0 && nx < size) { sum += gray[ny*size+nx]; count++; }
+        }
+      blurred[y*size+x] = sum/count;
+    }
+  }
+  // unsharp: original + amount*(original - blurred)
+  const amount = 2.0;
+  const sharpened = new Float32Array(size*size);
+  for (let i = 0; i < size*size; i++)
+    sharpened[i] = Math.max(0, Math.min(255, gray[i] + amount*(gray[i]-blurred[i])));
+  return atkinson(sharpened, size);
+}
+
+function quantize4(gray, size) {
+  // 4-level: 0,85,170,255
+  const out = new Uint8Array(size*size);
+  for(let i=0;i<size*size;i++){
+    const v=gray[i];
+    if(v<64) out[i]=0;
+    else if(v<128) out[i]=85;
+    else if(v<192) out[i]=170;
+    else out[i]=255;
+  }
+  return out;
+}
+
+function quantize4FS(gray, size) {
+  const img=new Float32Array(gray), levels=[0,85,170,255];
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const idx=y*size+x, old=img[idx];
+      let best=levels[0], bestDist=Math.abs(old-levels[0]);
+      for(const l of levels){ const d=Math.abs(old-l); if(d<bestDist){bestDist=d;best=l;} }
+      img[idx]=best; const err=old-best;
+      if(x+1<size)      img[idx+1]      +=err*7/16;
+      if(y+1<size){
+        if(x-1>=0)      img[idx+size-1] +=err*3/16;
+                        img[idx+size]   +=err*5/16;
+        if(x+1<size)    img[idx+size+1] +=err*1/16;
+      }
+    }
+  }
+  return new Uint8Array(img.map(v=>Math.round(v)));
+}
+
+// ── run pipeline ──────────────────────────────────────
+function runProcess() {
+  const size = currentRes;
+  let gray = downsample(grayBase, size);
+  gray = applyContrast(gray, contrastVal);
+
+  let data;
+  if (currentMode === '4gray') {
+    // sobel/unsharp/bayer don't apply meaningfully to 4gray — fallback to FS
+    data = (currentAlgo === 'bayer4' || currentAlgo === 'bayer8') ? quantize4(gray, size) : quantize4FS(gray, size);
+  } else {
+    if      (currentAlgo === 'fs')       data = floydSteinberg(gray, size);
+    else if (currentAlgo === 'atkinson') data = atkinson(gray, size);
+    else if (currentAlgo === 'bayer4')   data = bayer(gray, size, BAYER4, 4);
+    else if (currentAlgo === 'bayer8')   data = bayer(gray, size, BAYER8, 8);
+    else if (currentAlgo === 'halftone') data = halftone(gray, size);
+    else if (currentAlgo === 'sobel')    data = sobelFS(gray, size);
+    else if (currentAlgo === 'unsharp')  data = unsharpAtkinson(gray, size);
+    else                                 data = floydSteinberg(gray, size);
+  }
+
+  processedData = data;
+  updatePreviewCanvas(size);
+  renderPreview(data);
+  updateModeInfo(size);
+}
+
+function updatePreviewCanvas(size) {
+  const c = $('canvas-dither');
+  c.width = size; c.height = size;
+  // keep display size fixed at 256px via CSS
+}
+
+function renderPreview(data) {
+  const c = $('canvas-dither');
+  const size = c.width;
+  const ctx = c.getContext('2d');
+  const id = ctx.createImageData(size, size);
+  for (let i = 0; i < size*size; i++) {
+    let v = inverted ? 255-data[i] : data[i];
+    id.data[i*4]=v; id.data[i*4+1]=v; id.data[i*4+2]=v; id.data[i*4+3]=255;
+  }
+  ctx.putImageData(id, 0, 0);
+  $('preview-label').textContent = `${size}×${size} · ${currentMode === '4gray' ? '4-level gray' : '1-bit'}`;
+}
+
+function updateModeInfo(size) {
+  const algoNames = {
+    fs:'Floyd-Steinberg', atkinson:'Atkinson',
+    bayer4:'Bayer 4×4', bayer8:'Bayer 8×8',
+    halftone:'Halftone', sobel:'Sobel+FS', unsharp:'Unsharp+Atkinson'
+  };
+  let bytes, fmt;
+  if (currentMode === '4gray') {
+    bytes = (size*size)/4; // 2 bits per pixel
+    fmt = `${bytes} bytes · 2-bit packed · ${algoNames[currentAlgo] || 'Floyd-Steinberg'}`;
+  } else {
+    bytes = (size*size)/8;
+    fmt = `${bytes} bytes · 1-bit packed MSB · ${algoNames[currentAlgo]}`;
+  }
+  $('mode-info').textContent = fmt;
+}
+
+// ── pack ──────────────────────────────────────────────
+function pack1bit(data, size, inv) {
+  const bytes = new Uint8Array((size*size)/8);
+  for (let i = 0; i < size*size; i++) {
+    const black = inv ? data[i]===255 : data[i]===0;
+    if (black) bytes[i>>3] |= (1<<(7-(i&7)));
   }
   return bytes;
 }
 
-function setStatus(msg, cls) {
-  const el = $('status');
-  el.textContent = msg;
-  el.className = 'status' + (cls ? ' ' + cls : '');
+function pack4gray(data, size, inv) {
+  // 2 bits per pixel, MSB first, 4 pixels per byte
+  // levels: 0→0, 85→1, 170→2, 255→3
+  const bytes = new Uint8Array((size*size)/4);
+  for (let i = 0; i < size*size; i++) {
+    let v = data[i];
+    if (inv) v = 255-v;
+    let level = v < 43 ? 0 : v < 128 ? 1 : v < 213 ? 2 : 3;
+    const byteIdx = i >> 2;
+    const shift = (3-(i&3))*2;
+    bytes[byteIdx] |= (level << shift);
+  }
+  return bytes;
+}
+
+// ── generate ──────────────────────────────────────────
+function setStatus(msg,cls) {
+  const el=$('status'); el.textContent=msg;
+  el.className='status'+(cls?' '+cls:'');
 }
 
 $('btn-generate').addEventListener('click', () => {
-  const uuid = $('uuid').value.trim();
-  const username = $('username').value.trim();
-  const url = $('url').value.trim();
-  if (!uuid || uuid.length !== 4) { setStatus('uuid must be exactly 4 characters', 'err'); return; }
-  if (!username) { setStatus('username is required', 'err'); return; }
-  if (!ditherData) { setStatus('no avatar loaded', 'err'); return; }
+  const uuid=$('uuid').value.trim(), username=$('username').value.trim(), url=$('url').value.trim();
+  if (!uuid||uuid.length!==4) { setStatus('uuid must be exactly 4 characters','err'); return; }
+  if (!username)              { setStatus('username is required','err'); return; }
+  if (!processedData)         { setStatus('no avatar loaded','err'); return; }
 
-  const json = JSON.stringify({ uuid, username, url }, null, 2);
-  const bin = packBits(ditherData, inverted);
+  const size = currentRes;
+  const bin = currentMode === '4gray' ? pack4gray(processedData,size,inverted) : pack1bit(processedData,size,inverted);
+  const json = JSON.stringify({ uuid, username, url, avatar_res: size, avatar_mode: currentMode }, null, 2);
+
   const zip = new JSZip();
   zip.file('profile.json', json);
   zip.file('avatar.bin', bin);
-  zip.generateAsync({ type: 'blob' }).then(blob => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'self_profile.zip';
-    a.click();
-    setStatus('↓ self_profile.zip — extract both files to SD card root', 'ok');
+  zip.generateAsync({ type:'blob' }).then(blob => {
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='self_profile.zip'; a.click();
+    setStatus(`↓ self_profile.zip · ${bin.length} bytes · ${size}×${size} ${currentMode}`, 'ok');
   });
 });
 </script>
