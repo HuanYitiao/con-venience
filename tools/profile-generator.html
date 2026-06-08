@@ -59,6 +59,8 @@
   .ctrl-row input[type=range] { flex: 1; accent-color: var(--accent); }
   .ctrl-val { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 28px; text-align: right; }
   .mode-info { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 10px 6px; }
+  .loading-overlay { display: none; font-family: var(--mono); font-size: 11px; color: var(--accent); padding: 4px 10px 6px; }
+  .loading-overlay.visible { display: block; }
 
   .btn-row { display: flex; gap: 10px; margin-top: 2rem; }
   button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border-hi); background: transparent; color: var(--text); }
@@ -152,8 +154,18 @@
             <label>contrast</label>
             <input type="range" id="contrast-slider" min="0.5" max="3" step="0.05" value="1">
             <span class="ctrl-val" id="contrast-val">1.0</span>
+            <button class="invert-btn" id="btn-contrast-reset">reset</button>
+          </div>
+          <div class="ctrl-row">
+            <label>OLED color</label>
+            <div class="option-row" style="margin:0">
+              <button class="opt-btn active" data-oled="white">white</button>
+              <button class="opt-btn" data-oled="green">green</button>
+              <button class="opt-btn" data-oled="amber">amber</button>
+            </div>
           </div>
           <div class="mode-info" id="mode-info">512 bytes · 1-bit packed MSB · Floyd-Steinberg</div>
+          <div class="loading-overlay" id="loading-overlay">processing…</div>
         </div>
       </div>
     </div>
@@ -161,6 +173,7 @@
 
   <div class="btn-row">
     <button class="primary" id="btn-generate" disabled>generate files</button>
+    <button id="btn-recrop" style="display:none">re-crop</button>
   </div>
   <div class="status" id="status"></div>
 
@@ -182,7 +195,9 @@ let contrastVal = 1.0;
 let grayBase = null;      // raw gray, full resolution, before contrast
 let currentRes = 64;      // 64 or 128
 let currentMode = '1bit'; // '1bit' | '4gray'
-let currentAlgo = 'fs';   // 'fs' | 'atkinson' | 'bayer'
+let currentAlgo = 'fs';   // 'fs' | 'atkinson' | 'bayer' etc
+let oledColor = 'white';  // 'white' | 'green' | 'amber'
+let lastCropCoords = null; // {sx,sy,ss} for re-crop
 
 // crop state
 let crop = { x: 0, y: 0, size: 0 };
@@ -274,8 +289,10 @@ function drawCrop() {
 function getPos(e) {
   const c = $('crop-canvas');
   const rect = c.getBoundingClientRect();
-  return { x: Math.round((e.clientX - rect.left) * (c.width / rect.width)),
-           y: Math.round((e.clientY - rect.top)  * (c.height / rect.height)) };
+  // support both mouse and touch
+  const src = e.touches ? e.touches[0] : e;
+  return { x: Math.round((src.clientX - rect.left) * (c.width / rect.width)),
+           y: Math.round((src.clientY - rect.top)  * (c.height / rect.height)) };
 }
 
 function nearCorner(p) {
@@ -348,6 +365,11 @@ function stopDrag() { dragMode=null; cc.style.cursor='crosshair'; }
 cc.addEventListener('mouseup', stopDrag);
 cc.addEventListener('mouseleave', stopDrag);
 
+// touch events — mirror mouse events
+cc.addEventListener('touchstart', e => { e.preventDefault(); cc.dispatchEvent(new MouseEvent('mousedown', {clientX: e.touches[0].clientX, clientY: e.touches[0].clientY})); }, { passive: false });
+cc.addEventListener('touchmove',  e => { e.preventDefault(); cc.dispatchEvent(new MouseEvent('mousemove', {clientX: e.touches[0].clientX, clientY: e.touches[0].clientY})); }, { passive: false });
+cc.addEventListener('touchend',   e => { e.preventDefault(); stopDrag(); }, { passive: false });
+
 $('btn-reset-crop').addEventListener('click', () => {
   const c=$('crop-canvas'), defSize=Math.round(Math.min(c.width,c.height)*0.8);
   crop={x:Math.round((c.width-defSize)/2),y:Math.round((c.height-defSize)/2),size:defSize};
@@ -359,17 +381,26 @@ $('btn-confirm-crop').addEventListener('click', () => {
   const c=$('crop-canvas');
   const sx=crop.x*(sourceImg.width/c.width), sy=crop.y*(sourceImg.height/c.height);
   const ss=crop.size*(sourceImg.width/c.width);
+  lastCropCoords = { sx, sy, ss };
 
   const origC=$('canvas-orig'); origC.width=200; origC.height=200;
   origC.getContext('2d').drawImage(sourceImg,sx,sy,ss,ss,0,0,200,200);
 
-  grayBase = cropToGray(sourceImg, sx, sy, ss, 128); // always extract at 128, downscale if needed
+  grayBase = cropToGray(sourceImg, sx, sy, ss, 128);
   runProcess();
 
   $('crop-stage').classList.remove('visible');
   $('preview-grid').classList.add('visible');
   $('btn-generate').disabled = false;
-  setStatus('avatar ready — re-upload to crop again','ok');
+  $('btn-recrop').style.display = 'inline-block';
+  setStatus('avatar ready','ok');
+});
+
+$('btn-recrop').addEventListener('click', () => {
+  $('preview-grid').classList.remove('visible');
+  $('btn-recrop').style.display = 'none';
+  $('crop-stage').classList.add('visible');
+  setStatus('adjust crop then confirm','');
 });
 
 // ── option buttons ────────────────────────────────────
@@ -414,10 +445,26 @@ $('contrast-slider').addEventListener('input', function() {
   if (grayBase) runProcess();
 });
 
+$('btn-contrast-reset').addEventListener('click', () => {
+  contrastVal = 1.0;
+  $('contrast-slider').value = 1;
+  $('contrast-val').textContent = '1.0';
+  if (grayBase) runProcess();
+});
+
 $('btn-invert').addEventListener('click', () => {
   inverted = !inverted;
   $('btn-invert').classList.toggle('active', inverted);
   if (processedData) renderPreview(processedData);
+});
+
+document.querySelectorAll('[data-oled]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-oled]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    oledColor = btn.dataset.oled;
+    if (processedData) renderPreview(processedData);
+  });
 });
 
 // ── image processing ──────────────────────────────────
@@ -665,29 +712,34 @@ function quantize4FS(gray, size) {
 
 // ── run pipeline ──────────────────────────────────────
 function runProcess() {
-  const size = currentRes;
-  let gray = downsample(grayBase, size);
-  gray = applyContrast(gray, contrastVal);
+  const overlay = $('loading-overlay');
+  overlay.classList.add('visible');
+  // defer heavy work one frame so browser can paint the loading indicator
+  setTimeout(() => {
+    const size = currentRes;
+    let gray = downsample(grayBase, size);
+    gray = applyContrast(gray, contrastVal);
 
-  let data;
-  if (currentMode === '4gray') {
-    // sobel/unsharp/bayer don't apply meaningfully to 4gray — fallback to FS
-    data = (currentAlgo === 'bayer4' || currentAlgo === 'bayer8') ? quantize4(gray, size) : quantize4FS(gray, size);
-  } else {
-    if      (currentAlgo === 'fs')       data = floydSteinberg(gray, size);
-    else if (currentAlgo === 'atkinson') data = atkinson(gray, size);
-    else if (currentAlgo === 'bayer4')   data = bayer(gray, size, BAYER4, 4);
-    else if (currentAlgo === 'bayer8')   data = bayer(gray, size, BAYER8, 8);
-    else if (currentAlgo === 'halftone') data = halftone(gray, size);
-    else if (currentAlgo === 'sobel')    data = sobelFS(gray, size);
-    else if (currentAlgo === 'unsharp')  data = unsharpAtkinson(gray, size);
-    else                                 data = floydSteinberg(gray, size);
-  }
+    let data;
+    if (currentMode === '4gray') {
+      data = (currentAlgo === 'bayer4' || currentAlgo === 'bayer8') ? quantize4(gray, size) : quantize4FS(gray, size);
+    } else {
+      if      (currentAlgo === 'fs')       data = floydSteinberg(gray, size);
+      else if (currentAlgo === 'atkinson') data = atkinson(gray, size);
+      else if (currentAlgo === 'bayer4')   data = bayer(gray, size, BAYER4, 4);
+      else if (currentAlgo === 'bayer8')   data = bayer(gray, size, BAYER8, 8);
+      else if (currentAlgo === 'halftone') data = halftone(gray, size);
+      else if (currentAlgo === 'sobel')    data = sobelFS(gray, size);
+      else if (currentAlgo === 'unsharp')  data = unsharpAtkinson(gray, size);
+      else                                 data = floydSteinberg(gray, size);
+    }
 
-  processedData = data;
-  updatePreviewCanvas(size);
-  renderPreview(data);
-  updateModeInfo(size);
+    processedData = data;
+    updatePreviewCanvas(size);
+    renderPreview(data);
+    updateModeInfo(size);
+    overlay.classList.remove('visible');
+  }, 16);
 }
 
 function updatePreviewCanvas(size) {
@@ -701,9 +753,18 @@ function renderPreview(data) {
   const size = c.width;
   const ctx = c.getContext('2d');
   const id = ctx.createImageData(size, size);
+  const colors = {
+    white: [255,255,255], green: [176,255,48], amber: [255,176,0]
+  };
+  const [fr,fg,fb] = colors[oledColor] || colors.white;
   for (let i = 0; i < size*size; i++) {
     let v = inverted ? 255-data[i] : data[i];
-    id.data[i*4]=v; id.data[i*4+1]=v; id.data[i*4+2]=v; id.data[i*4+3]=255;
+    // scale 0-255 brightness: 0=fully lit (OLED color), 255=black
+    const t = v / 255; // 0=lit, 1=dark
+    id.data[i*4]   = Math.round(fr * (1-t));
+    id.data[i*4+1] = Math.round(fg * (1-t));
+    id.data[i*4+2] = Math.round(fb * (1-t));
+    id.data[i*4+3] = 255;
   }
   ctx.putImageData(id, 0, 0);
   $('preview-label').textContent = `${size}×${size} · ${currentMode === '4gray' ? '4-level gray' : '1-bit'}`;
