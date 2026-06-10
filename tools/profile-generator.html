@@ -61,6 +61,29 @@
   .mode-info { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 10px 6px; }
   .loading-overlay { display: none; font-family: var(--mono); font-size: 11px; color: var(--accent); padding: 4px 10px 6px; }
   .loading-overlay.visible { display: block; }
+  .links-section { margin-top: 14px; }
+  .links-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .section-sublabel { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .links-count { color: var(--border-hi); margin-left: 6px; }
+  .link-row { display: grid; grid-template-columns: 100px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .link-tag { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; outline: none; transition: border-color 0.15s; }
+  .link-tag:focus { border-color: var(--accent-dim); }
+  .link-tag::placeholder { color: var(--muted); }
+  .link-url { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; outline: none; transition: border-color 0.15s; width: 100%; }
+  .link-url:focus { border-color: var(--accent-dim); }
+  .link-url::placeholder { color: var(--muted); }
+  .link-remove { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 14px; cursor: pointer; padding: 0; height: 30px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .link-remove:hover { border-color: #e05a5a; color: #e05a5a; }
+  .links-section { margin-top: 1.25rem; }
+  .links-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .section-sublabel { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .links-count { color: var(--border-hi); margin-left: 6px; }
+  .link-row { display: grid; grid-template-columns: 100px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .link-row input { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; width: 100%; outline: none; transition: border-color 0.15s; }
+  .link-row input:focus { border-color: var(--accent-dim); }
+  .link-row input::placeholder { color: var(--muted); }
+  .link-remove { font-family: var(--mono); font-size: 14px; color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 0; line-height: 1; transition: color 0.15s; }
+  .link-remove:hover { color: #e05a5a; }
 
   .btn-row { display: flex; gap: 10px; margin-top: 2rem; }
   button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border-hi); background: transparent; color: var(--text); }
@@ -86,9 +109,17 @@
   <div class="section">
     <div class="section-label">identity</div>
     <div class="fields">
-      <div class="field"><label>uuid</label><input type="text" id="uuid" placeholder="A3F9" maxlength="4"></div>
-      <div class="field"><label>username</label><input type="text" id="username" placeholder="Wolfram" maxlength="31"></div>
-      <div class="field"><label>url</label><input type="text" id="url" placeholder="t.me/WolframLiu" maxlength="127"></div>
+      <div class="field"><label>uuid</label><input type="text" id="uuid" placeholder="ACDC" maxlength="4"></div>
+      <div class="field"><label>name</label><input type="text" id="name" placeholder="Wolfram Liu" maxlength="31"></div>
+      <div class="field"><label>species</label><input type="text" id="species" placeholder="Samoyed" maxlength="63"></div>
+      <div class="field"><label>from</label><input type="text" id="from" placeholder="Jönköping" maxlength="63"></div>
+    </div>
+    <div class="links-section">
+      <div class="links-header">
+        <span class="section-sublabel">links <span class="links-count" id="links-count">0 / 5</span></span>
+        <button class="invert-btn" id="btn-add-link">+ add link</button>
+      </div>
+      <div id="links-list"></div>
     </div>
   </div>
 
@@ -206,6 +237,36 @@ let dragStart = { x: 0, y: 0 };
 let cropAtDragStart = null;
 let bgBitmap = null;
 const HANDLE_R = 16;
+
+// ── links ─────────────────────────────────────────────
+const MAX_LINKS = 5;
+
+function updateLinksCount() {
+  const n = document.querySelectorAll('.link-row').length;
+  $('links-count').textContent = `${n} / ${MAX_LINKS}`;
+  $('btn-add-link').disabled = n >= MAX_LINKS;
+  $('btn-add-link').style.opacity = n >= MAX_LINKS ? '0.3' : '1';
+}
+
+function addLink(tag = '', url = '') {
+  if (document.querySelectorAll('.link-row').length >= MAX_LINKS) return;
+  const row = document.createElement('div');
+  row.className = 'link-row';
+  row.innerHTML = `
+    <input class="link-tag" type="text" placeholder="telegram" maxlength="24" value="${tag}">
+    <input class="link-url" type="text" placeholder="t.me/username" maxlength="127" value="${url}">
+    <button class="link-remove" title="remove">×</button>
+  `;
+  row.querySelector('.link-remove').addEventListener('click', () => {
+    row.remove();
+    updateLinksCount();
+  });
+  $('links-list').appendChild(row);
+  updateLinksCount();
+}
+
+$('btn-add-link').addEventListener('click', () => addLink());
+updateLinksCount();
 
 // ── uuid ──────────────────────────────────────────────
 $('uuid').addEventListener('input', function() {
@@ -819,20 +880,33 @@ function setStatus(msg,cls) {
 }
 
 $('btn-generate').addEventListener('click', () => {
-  const uuid=$('uuid').value.trim(), username=$('username').value.trim(), url=$('url').value.trim();
-  if (!uuid||uuid.length!==4) { setStatus('uuid must be exactly 4 characters','err'); return; }
-  if (!username)              { setStatus('username is required','err'); return; }
-  if (!processedData)         { setStatus('no avatar loaded','err'); return; }
+  const uuid    = $('uuid').value.trim();
+  const name    = $('name').value.trim();
+  const species = $('species').value.trim();
+  const from    = $('from').value.trim();
+
+  if (!uuid || uuid.length !== 4) { setStatus('uuid must be exactly 4 characters', 'err'); return; }
+  if (!name)                       { setStatus('name is required', 'err'); return; }
+  if (!processedData)              { setStatus('no avatar loaded', 'err'); return; }
+
+  // collect links
+  const links = [];
+  document.querySelectorAll('.link-row').forEach(row => {
+    const tag = row.querySelector('.link-tag').value.trim();
+    const url = row.querySelector('.link-url').value.trim();
+    if (tag || url) links.push({ tag, url });
+  });
 
   const size = currentRes;
-  const bin = currentMode === '4gray' ? pack4gray(processedData,size,inverted) : pack1bit(processedData,size,inverted);
-  const json = JSON.stringify({ uuid, username, url, avatar_res: size, avatar_mode: currentMode }, null, 2);
+  const bin = currentMode === '4gray' ? pack4gray(processedData, size, inverted) : pack1bit(processedData, size, inverted);
+  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: currentMode };
+  const json = JSON.stringify(profile, null, 2);
 
   const zip = new JSZip();
   zip.file('profile.json', json);
   zip.file('avatar.bin', bin);
-  zip.generateAsync({ type:'blob' }).then(blob => {
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='self_profile.zip'; a.click();
+  zip.generateAsync({ type: 'blob' }).then(blob => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'self_profile.zip'; a.click();
     setStatus(`↓ self_profile.zip · ${bin.length} bytes · ${size}×${size} ${currentMode}`, 'ok');
   });
 });
