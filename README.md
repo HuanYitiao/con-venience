@@ -1,7 +1,7 @@
 # con-venience
 
-[![Build Firmware](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml/badge.svg)](https://github.com/HuanYitiao/con-venience/actions/workflows/build.yml)
-![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue)
+[![Build Firmware](https://github.com/HuanYitiao/con-venience-firmware/actions/workflows/build.yml/badge.svg)](https://github.com/HuanYitiao/con-venience-firmware/actions/workflows/build.yml)
+![Platform](https://img.shields.io/badge/platform-ESP32--c6-blue)
 ![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
