@@ -1,0 +1,3 @@
+[submodule "firmware/con-venience"]
+	path = firmware/con-venience
+	url = https://github.com/HuanYitiao/con-venience-firmware.git
