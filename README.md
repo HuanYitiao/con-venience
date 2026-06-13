@@ -1,7 +1,7 @@
 # con-venience
 
 [![Build Firmware](https://github.com/HuanYitiao/con-venience-firmware/actions/workflows/build.yml/badge.svg)](https://github.com/HuanYitiao/con-venience-firmware/actions/workflows/build.yml)
-![Platform](https://img.shields.io/badge/platform-ESP32--c6-blue)
+![Platform](https://img.shields.io/badge/platform-ESP32--C6-blue)
 ![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -12,18 +12,18 @@
 
 Ever hit it off with another fursuiter, only to realize — you can't unlock your phone through mesh eyes, can't type with paws on, and definitely don't want to break the magic by de-suiting just to swap contacts?
 
-**con-venience** has one answer: touch wrists.
+**con-venience** is a wearable social device for fursuiters. Watch-sized. One large button. 18-hour battery. Handles everything your phone can't while you're suited up.
 
 ---
 
 ## What it does
 
-**con-venience** is a wearable social device built for furry conventions. Watch-sized. Lives on your forearm. Handles everything your phone can't while you're suited up.
-
 | Scenario | What happens |
 |---|---|
-| 🐾 Two fursuiters meet | Wrists touch → ACOM protocol exchanges Telegram handles automatically |
-| 📱 Attendee wants to add you | They scan the QR code on your display → straight to your profile |
+| 🐾 Two fursuiters meet | Touch → Exchanges profiles automatically |
+| 📱 Attendee wants to add you | They scan the QR code on your display → straight to your link |
+
+No menus. No unlocking. No breaking character.
 
 ---
 
@@ -31,25 +31,32 @@ Ever hit it off with another fursuiter, only to realize — you can't unlock you
 
 **ACOM (Asymmetric Contact Over Metal)** is the heart of the project.
 
-Two exposed metal contact pads. Opposite-polarity magnets for alignment. When two devices touch, they handshake and exchange usernames — no Bluetooth pairing screen, no menus, no "can you unlock my phone real quick."
+Two exposed metal contact pads on each device, aligned by opposite-polarity magnets. When two devices touch, they exchange contact information automatically — no Bluetooth pairing screen, no app, no "can you unlock my phone real quick."
 
-This is why the device exists.
+**Under the hood — two layers:**
 
-**Under the hood:** single-wire half-duplex UART via 74HC126 tri-state buffer, 9600 baud, magic byte handshake + randomized backoff collision avoidance.
+**Layer 1 — Physical contact (OOB channel):** The metal pads connect through a 74HC126 tri-state buffer, forming a single-wire half-duplex channel. The two devices exchange only their BLE MAC addresses over this channel. MAC comparison decides roles: the lower MAC becomes BLE Peripheral, the higher becomes Central.
+
+**Layer 2 — BLE profile exchange:** With roles assigned and MACs known, the Central scans for the Peripheral directly (no broadcast needed), opens a GATT connection, and both devices exchange their full profiles — Telegram handle, avatar, and URLs. The contact appears as a name card on-screen. Connection closes. Done.
+
+The physical touch is the pairing. The ritual is the protocol.
 
 ---
 
 ## Hardware
 
-| Component | Choice | Why |
+| Component | Choice | Notes |
 |---|---|---|
-| MCU | ESP32-C6-devkit | BLE + native USB + enough GPIO |
-| Display | 2.9" screen, 256×128px | Special style profiles |
-| Audio | MP3 module | Game Boy–style feedback tones, light and simple |
+| MCU | ESP32-C6-DevKitC-1 | BLE 5 + Wi-Fi 6 + native USB |
+| Display (dev) | 2.42" SSD1309 OLED, 128×64 | SPI, u8g2 |
+| Display (production target) | ST75256, 256×128, 4-bit grayscale | u8g2 throughout — constructor swap only |
+| Storage | MicroSD via SPI | `/self_profile/`, `/friends_profiles/`, `/musics/` |
+| Audio | VS1053B MP3 module | Game Boy–style feedback tones — post-MVP |
 | Battery | 3× AA Eneloop NiMH | 18h+ target — covers a full convention day |
-| Contact comm | Metal pads + 74HC126 | The physical layer of ACOM |
+| Contact comm | Metal pads + 74HC126 | Physical layer of ACOM |
+| LED | WS2812B | Status indicator |
 
-**Form factor:** wrist-worn, watch profile. Designed around one hard constraint: gloved paws can't do precise button presses. One large pairing button. Everything else happens automatically.
+**Form factor:** wrist-worn, watch profile. One large button for gloved-paw use. Directional buttons for unsuited configuration.
 
 ---
 
@@ -58,16 +65,17 @@ This is why the device exists.
 ```
 firmware/platformIO/con-venience/
 ├── src/
-│   └── main.cpp          # thin glue layer, state machine entry point
+│   └── main.cpp          # thin glue layer — get input → update FSM → render display
 ├── lib/
 │   ├── fsm/              # finite state machine (Idle / Pairing / Contact card / Menu)
-│   ├── storage/          # LittleFS + JSON contact storage
-│   ├── input/            # button handling
-│   └── acom/             # contact communication protocol (in progress)
+│   ├── storage/          # SD card + JSON contact storage, on-demand loading
+│   ├── input/            # button handling (large button + directional)
+│   ├── display/          # u8g2 UI — in progress
+│   └── acom/             # ACOM protocol: OOB MAC exchange + BLE GATT profile transfer
 └── platformio.ini
 ```
 
-Modular by design. Each subsystem is its own library under `lib/`. `main.cpp` connects things; it doesn't contain logic.
+C-style throughout: structs, enums, plain functions with module-prefix naming. No classes. `main.cpp` connects things; it doesn't contain logic.
 
 ---
 
@@ -75,14 +83,16 @@ Modular by design. Each subsystem is its own library under `lib/`. `main.cpp` co
 
 ```
 [x] Hardware architecture finalized
-[x] Storage module (lib/storage) — complete and tested
+[x] Storage module (lib/storage) — SD card, on-demand contact loading
 [x] State machine (lib/fsm) — complete and tested
 [x] Button input (lib/input) — complete
 [x] CI (GitHub Actions) — Arduino + PlatformIO dual build
-[~] ACOM protocol — single-wire comms validated, library integration in progress
-[~] Display module — u8g2 confirmed, UI implementation in progress
-[ ] PCB v1 — target: October, small convention demo
-[ ] Community hardware kit — target: February
+[x] BLE server — verified on ESP32-C6 via nRF Connect
+[~] pioarduino + NimBLE-Arduino migration — validated, main project migration in progress
+[~] ACOM protocol — state machine + physical layer designed, library integration in progress
+[~] Display module (lib/display/) — u8g2 on pioarduino/NimBLE stack, UI implementation in progress
+[ ] PCB v1 — target: small convention demo
+[ ] Community hardware kit — target: post-PCB-v1
 ```
 
 `[~]` = validated, pending integration
@@ -124,10 +134,12 @@ Not sure where to start? Open an issue and say hi.
 
 ## Roadmap
 
-- **Now:** Breadboard prototype, ACOM validation, core UI
-- **October:** PCB v1, small convention demo
-- **February:** Community hardware kit launch
-- **Future:** Full fursuit companion platform
+These are targets, not deadlines.
+
+- **Now:** pioarduino migration, ACOM library integration, core UI
+- **PCB v1 (target: 2025 Q4):** first physical board, small convention demo
+- **Community kit (target: 2026 Q1):** hardware kit launch for builders
+- **Future:** full fursuit companion platform
 
 ---
 
@@ -150,7 +162,8 @@ Because the people who would use this are also the people who can improve it. Se
 
 ## License
 
-MIT — do whatever you want, just keep the attribution.
+Firmware: MIT — do whatever you want, just keep the attribution.
+Hardware: CERN-OHL-S
 
 ---
 
