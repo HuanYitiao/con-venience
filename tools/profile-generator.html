@@ -12,6 +12,15 @@
     --text: #e8e8e8; --muted: #666; --accent: #c8f050; --accent-dim: #8aaa2a;
     --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
   }
+  body.day {
+    --bg: #f5f0e8; --surface: #ede8df; --border: #d4cdc0; --border-hi: #b8b0a0;
+    --text: #2a2520; --muted: #8a8070; --accent: #5a7a00; --accent-dim: #4a6600;
+  }
+  body.day .oled-sim { background: #1a1a1a; }
+  body.day input[type="text"] { background: var(--surface); }
+  body.day #crop-canvas { filter: none; }
+  .theme-toggle { position: fixed; top: 1rem; right: 1rem; font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border-hi); background: var(--surface); color: var(--muted); transition: all 0.2s; z-index: 100; }
+  .theme-toggle:hover { border-color: var(--accent-dim); color: var(--accent); }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; min-height: 100vh; padding: 2rem 1rem 4rem; }
   .container { max-width: 720px; margin: 0 auto; }
   header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
@@ -85,6 +94,18 @@
   .link-remove { font-family: var(--mono); font-size: 14px; color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 0; line-height: 1; transition: color 0.15s; }
   .link-remove:hover { color: #e05a5a; }
 
+  /* ── audio ── */
+  #audio-stage { display: none; margin-top: 1rem; }
+  #audio-stage.visible { display: block; }
+  .waveform-wrap { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: crosshair; user-select: none; }
+  #waveform-canvas { display: block; width: 100%; height: 80px; }
+  #waveform-canvas.loaded { cursor: text; }
+  .audio-controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .time-display { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .time-display span { color: var(--text); }
+  .audio-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .audio-info { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 8px; }
+
   .btn-row { display: flex; gap: 10px; margin-top: 2rem; }
   button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border-hi); background: transparent; color: var(--text); }
   button:hover { border-color: var(--accent-dim); color: var(--accent); }
@@ -99,6 +120,7 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle" id="theme-toggle">☀ day</button>
 <div class="container">
 
   <header>
@@ -149,7 +171,7 @@
       <div class="preview-box">
         <div class="preview-box-label">
           <span id="preview-label">output</span>
-          <button class="invert-btn" id="btn-invert">invert</button>
+          <button class="invert-btn active" id="btn-invert">invert</button>
         </div>
         <div class="oled-sim">
           <canvas id="canvas-dither" width="64" height="64"></canvas>
@@ -158,8 +180,7 @@
           <div class="ctrl-row">
             <label>resolution</label>
             <div class="option-row" style="margin:0">
-              <button class="opt-btn active" data-res="64">64×64</button>
-              <button class="opt-btn" data-res="128">128×128</button>
+              <button class="opt-btn active" data-res="128">128×128</button>
             </div>
           </div>
           <div class="ctrl-row">
@@ -202,6 +223,34 @@
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-label" style="display:none">audio</div>
+    <div style="display:none" id="audio-upload-zone">
+      <input type="file" id="audio-file-input" accept="audio/*">
+    </div>
+    <div id="audio-stage" style="display:none!important">
+      <div class="audio-hint" style="margin-top:10px">drag to select clip · handles to adjust</div>
+      <div class="waveform-wrap" id="waveform-wrap">
+        <canvas id="waveform-canvas" height="80"></canvas>
+      </div>
+      <div class="audio-controls">
+        <button id="btn-play-clip">▶ play clip</button>
+        <button id="btn-stop-clip" disabled>◼ stop</button>
+        <button id="btn-clear-audio">✕ remove</button>
+        <div class="time-display">clip: <span id="clip-start">0.00</span>s – <span id="clip-end">0.00</span>s &nbsp;·&nbsp; <span id="clip-dur">0.00</span>s</div>
+      </div>
+      <div class="ctrl-row" style="margin-top:8px">
+        <div class="option-row" style="margin:0">
+          <button class="opt-btn" data-kbps="32">32</button>
+          <button class="opt-btn" data-kbps="64">64</button>
+          <button class="opt-btn" data-kbps="96">96</button>
+          <button class="opt-btn active" data-kbps="128">128</button>
+        </div>
+      </div>
+      <div class="audio-info" id="audio-info"></div>
+    </div>
+  </div>
+
   <div class="btn-row">
     <button class="primary" id="btn-generate" disabled>generate files</button>
     <button id="btn-recrop" style="display:none">re-crop</button>
@@ -218,17 +267,23 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// ── theme ─────────────────────────────────────────────
+$('theme-toggle').addEventListener('click', () => {
+  const isDay = document.body.classList.toggle('day');
+  $('theme-toggle').textContent = isDay ? '☾ night' : '☀ day';
+});
+
 // ── state ─────────────────────────────────────────────
 let sourceImg = null;
 let processedData = null; // output of current algorithm
-let inverted = false;
+let inverted = true;
 let contrastVal = 1.0;
 let grayBase = null;      // raw gray, full resolution, before contrast
-let currentRes = 64;      // 64 or 128
+let currentRes = 128;     // 128 only now
 let currentMode = '1bit'; // '1bit' | '4gray'
 let currentAlgo = 'fs';   // 'fs' | 'atkinson' | 'bayer' etc
 let oledColor = 'white';  // 'white' | 'green' | 'amber'
-let lastCropCoords = null; // {sx,sy,ss} for re-crop
+let lastCropCoords = null;
 
 // crop state
 let crop = { x: 0, y: 0, size: 0 };
@@ -320,8 +375,8 @@ function initCrop() {
   $('preview-grid').classList.remove('visible');
   $('btn-generate').disabled = true;
   processedData = null; grayBase = null;
-  inverted = false;
-  $('btn-invert').classList.remove('active');
+  inverted = true;
+  $('btn-invert').classList.add('active');
   $('contrast-slider').value = 1; $('contrast-val').textContent = '1.0'; contrastVal = 1.0;
   setStatus('adjust crop then confirm', '');
 }
@@ -470,14 +525,6 @@ document.querySelectorAll('[data-res]').forEach(btn => {
     document.querySelectorAll('[data-res]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentRes = parseInt(btn.dataset.res);
-    // 4gray only available at 128
-    if (currentRes === 64 && currentMode === '4gray') {
-      currentMode = '1bit';
-      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
-      document.querySelector('[data-mode="1bit"]').classList.add('active');
-    }
-    document.querySelector('[data-mode="4gray"]').style.opacity = currentRes === 64 ? '0.3' : '1';
-    document.querySelector('[data-mode="4gray"]').style.pointerEvents = currentRes === 64 ? 'none' : 'auto';
     if (grayBase) runProcess();
   });
 });
@@ -839,8 +886,9 @@ function updateModeInfo(size) {
   };
   let bytes, fmt;
   if (currentMode === '4gray') {
-    bytes = (size*size)/4; // 2 bits per pixel
-    fmt = `${bytes} bytes · 2-bit packed · ${algoNames[currentAlgo] || 'Floyd-Steinberg'}`;
+    const numPages = Math.ceil(size / 4);
+    bytes = numPages * size; // page-major, column-minor
+    fmt = `${bytes} bytes · 2bpp vertical page-major · ${algoNames[currentAlgo] || 'Floyd-Steinberg'}`;
   } else {
     bytes = (size*size)/8;
     fmt = `${bytes} bytes · 1-bit packed MSB · ${algoNames[currentAlgo]}`;
@@ -859,19 +907,389 @@ function pack1bit(data, size, inv) {
 }
 
 function pack4gray(data, size, inv) {
-  // 2 bits per pixel, MSB first, 4 pixels per byte
-  // levels: 0→0, 85→1, 170→2, 255→3
-  const bytes = new Uint8Array((size*size)/4);
-  for (let i = 0; i < size*size; i++) {
-    let v = data[i];
-    if (inv) v = 255-v;
-    let level = v < 43 ? 0 : v < 128 ? 1 : v < 213 ? 2 : 3;
-    const byteIdx = i >> 2;
-    const shift = (3-(i&3))*2;
-    bytes[byteIdx] |= (level << shift);
+  // ST75256 format: page-major, column-minor, vertical pixels
+  // 1 byte = 4 vertically stacked pixels in the same column
+  // bit[7:6]=pixel row 0, bit[5:4]=pixel row 1, bit[3:2]=pixel row 2, bit[1:0]=pixel row 3
+  // gray level: 0=white(00), 1=light gray(01), 2=dark gray(10), 3=black(11)
+  // data[] is row-major: data[y*size+x]
+  const numPages = Math.ceil(size / 4);
+  const bytes = new Uint8Array(numPages * size); // page-major, column-minor
+  for (let page = 0; page < numPages; page++) {
+    for (let col = 0; col < size; col++) {
+      let byte = 0;
+      for (let row = 0; row < 4; row++) {
+        const y = page * 4 + row;
+        let v = y < size ? data[y * size + col] : 0;
+        if (inv) v = 255 - v;
+        // map 0-255 to gray level: 0=white, 3=black
+        let level;
+        if      (v < 43)  level = 0; // white
+        else if (v < 128) level = 1; // light gray
+        else if (v < 213) level = 2; // dark gray
+        else              level = 3; // black
+        // bit[7:6] for row 0, bit[5:4] for row 1, etc.
+        byte |= (level << ((3 - row) * 2));
+      }
+      bytes[page * size + col] = byte;
+    }
   }
   return bytes;
 }
+
+// ── audio ─────────────────────────────────────────────
+let audioCtx = null;
+let audioBuffer = null;   // decoded full audio
+let audioMp3Blob = null;  // encoded MP3 of selected clip
+let mp3Kbps = 128;        // current bitrate
+let clipStart = 0;
+let clipEnd = 0;
+let audioSource = null;   // currently playing source
+let waveformPeaks = null; // downsampled waveform data
+let audioDragging = false;
+let audioDragMode = null; // 'start' | 'end' | 'new'
+const HANDLE_PX = 8;      // px hit radius for handles
+
+const audioZone = $('audio-upload-zone');
+audioZone.addEventListener('dragover', e => { e.preventDefault(); audioZone.classList.add('drag-over'); });
+audioZone.addEventListener('dragleave', () => audioZone.classList.remove('drag-over'));
+audioZone.addEventListener('drop', e => {
+  e.preventDefault(); audioZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('audio/')) loadAudio(f);
+});
+$('audio-file-input').addEventListener('change', e => {
+  if (e.target.files[0]) { loadAudio(e.target.files[0]); e.target.value = ''; }
+});
+
+function loadAudio(file) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    audioCtx.decodeAudioData(ev.target.result.slice(0), buf => {
+      audioBuffer = buf;
+      clipStart = 0;
+      clipEnd = Math.min(5, buf.duration);
+      buildWaveform();
+      $('audio-stage').classList.add('visible');
+      updateClipDisplay();
+      encodeClip();
+    }, err => setStatus('audio decode failed: ' + err, 'err'));
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function buildWaveform() {
+  const canvas = $('waveform-canvas');
+  const wrap = $('waveform-wrap');
+  canvas.width = wrap.clientWidth || 680;
+  const data = audioBuffer.getChannelData(0);
+  const bins = canvas.width;
+  const step = Math.floor(data.length / bins);
+  waveformPeaks = new Float32Array(bins);
+  for (let i = 0; i < bins; i++) {
+    let max = 0;
+    for (let j = 0; j < step; j++) max = Math.max(max, Math.abs(data[i*step+j]));
+    waveformPeaks[i] = max;
+  }
+  drawWaveform();
+}
+
+function waveformPos(e) {
+  const canvas = $('waveform-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  return Math.max(0, Math.min(canvas.width, x));
+}
+
+function xToTime(x) {
+  return x / $('waveform-canvas').width * audioBuffer.duration;
+}
+
+function timeToX(t) {
+  return t / audioBuffer.duration * $('waveform-canvas').width;
+}
+
+function nearHandle(x) {
+  const sx = timeToX(clipStart), ex = timeToX(clipEnd);
+  // scale HANDLE_PX to canvas internal coords accounting for CSS scaling
+  const canvas = $('waveform-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+  const hitR = 12 * scale; // 12 CSS px converted to canvas px
+  if (Math.abs(x - sx) <= hitR) return 'start';
+  if (Math.abs(x - ex) <= hitR) return 'end';
+  if (x > sx + hitR && x < ex - hitR) return 'region';
+  return null;
+}
+
+let regionDragAnchorStart = 0;
+let regionDragAnchorX = 0;
+
+const wc = $('waveform-canvas');
+wc.addEventListener('mousedown', e => {
+  const x = waveformPos(e);
+  const h = nearHandle(x);
+  console.log('mousedown x=', x, 'nearHandle=', h, 'sx=', timeToX(clipStart), 'ex=', timeToX(clipEnd));
+  audioDragging = true;
+  if (h === 'start' || h === 'end') {
+    audioDragMode = h;
+  } else if (h === 'region') {
+    audioDragMode = 'region';
+    regionDragAnchorStart = clipStart;
+    regionDragAnchorX = x;
+  } else {
+    audioDragMode = 'new';
+    clipStart = xToTime(x);
+    clipEnd = clipStart;
+  }
+  drawWaveform(); updateClipDisplay();
+});
+
+wc.addEventListener('mousemove', e => {
+  const x = waveformPos(e);
+  if (!audioDragging) {
+    const h = nearHandle(x);
+    wc.style.cursor = (h === 'start' || h === 'end') ? 'ew-resize' : h === 'region' ? 'grab' : 'crosshair';
+    return;
+  }
+  const t = xToTime(x);
+  const clipDur = clipEnd - clipStart;
+  if (audioDragMode === 'start') {
+    clipStart = Math.max(0, Math.min(t, clipEnd - 0.1));
+    if (clipEnd - clipStart > 5) clipStart = clipEnd - 5;
+  } else if (audioDragMode === 'end') {
+    clipEnd = Math.min(audioBuffer.duration, Math.max(t, clipStart + 0.1));
+    if (clipEnd - clipStart > 5) clipEnd = clipStart + 5;
+  } else if (audioDragMode === 'region') {
+    const pxPerSec = $('waveform-canvas').width / audioBuffer.duration;
+    const dt = (x - regionDragAnchorX) / pxPerSec;
+    let ns = regionDragAnchorStart + dt;
+    ns = Math.max(0, Math.min(ns, audioBuffer.duration - clipDur));
+    clipStart = ns;
+    clipEnd   = ns + clipDur;
+  } else {
+    const anchor = clipStart;
+    if (t > anchor) { clipEnd = Math.min(t, audioBuffer.duration, anchor + 5); }
+    else { clipStart = Math.max(t, 0); clipEnd = anchor; if (clipEnd - clipStart > 5) clipStart = clipEnd - 5; }
+  }
+  drawWaveform(); updateClipDisplay();
+});
+
+function stopAudioDrag() {
+  if (audioDragging) { audioDragging = false; encodeClip(); }
+}
+wc.addEventListener('mouseup', stopAudioDrag);
+wc.addEventListener('mouseleave', stopAudioDrag);
+
+// touch support
+wc.addEventListener('touchstart', e => { e.preventDefault(); wc.dispatchEvent(new MouseEvent('mousedown', {clientX:e.touches[0].clientX,clientY:e.touches[0].clientY})); }, {passive:false});
+wc.addEventListener('touchmove',  e => { e.preventDefault(); wc.dispatchEvent(new MouseEvent('mousemove', {clientX:e.touches[0].clientX,clientY:e.touches[0].clientY})); }, {passive:false});
+wc.addEventListener('touchend',   e => { e.preventDefault(); stopAudioDrag(); }, {passive:false});
+
+function updateClipDisplay() {
+  const dur = clipEnd - clipStart;
+  $('clip-start').textContent = clipStart.toFixed(2);
+  $('clip-end').textContent   = clipEnd.toFixed(2);
+  $('clip-dur').textContent   = dur.toFixed(2);
+}
+
+function encodeClip() {
+  if (!audioBuffer || typeof lamejs === 'undefined') return;
+  const sampleRate = audioBuffer.sampleRate;
+  const startSample = Math.floor(clipStart * sampleRate);
+  const endSample   = Math.floor(clipEnd   * sampleRate);
+  const length = endSample - startSample;
+
+  // get mono PCM (mix down if stereo)
+  const ch0 = audioBuffer.getChannelData(0);
+  const ch1 = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : ch0;
+  const pcmFloat = new Float32Array(length);
+  for (let i = 0; i < length; i++)
+    pcmFloat[i] = (ch0[startSample+i] + ch1[startSample+i]) / 2;
+
+  // convert float32 to int16
+  const pcmInt16 = new Int16Array(length);
+  for (let i = 0; i < length; i++) {
+    let s = Math.max(-1, Math.min(1, pcmFloat[i]));
+    pcmInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+
+  // encode MP3 at selected bitrate mono
+  const mp3enc = new lamejs.Mp3Encoder(1, sampleRate, mp3Kbps);
+  const chunkSize = 1152;
+  const mp3Data = [];
+  for (let i = 0; i < length; i += chunkSize) {
+    const chunk = pcmInt16.subarray(i, i + chunkSize);
+    const encoded = mp3enc.encodeBuffer(chunk);
+    if (encoded.length > 0) mp3Data.push(new Uint8Array(encoded));
+  }
+  const flushed = mp3enc.flush();
+  if (flushed.length > 0) mp3Data.push(new Uint8Array(flushed));
+
+  const totalLen = mp3Data.reduce((a, b) => a + b.length, 0);
+  const mp3Buf = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const chunk of mp3Data) { mp3Buf.set(chunk, offset); offset += chunk.length; }
+  audioMp3Blob = mp3Buf;
+  const kb = (totalLen / 1024).toFixed(1);
+  $('audio-info').textContent = `mp3 · ${mp3Kbps}kbps mono · ${kb} KB`;
+}
+
+let audioManualStop = false;
+let playStartTime = 0;    // audioCtx.currentTime when playback started
+let playOffset = 0;       // clipStart offset
+let playAnimFrame = null; // requestAnimationFrame handle
+let playheadPos = -1;     // current playhead in seconds (-1 = hidden)
+
+function drawWaveform() {
+  const canvas = $('waveform-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const dur = audioBuffer.duration;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#181818';
+  ctx.fillRect(0, 0, W, H);
+
+  const sx = Math.round(clipStart / dur * W);
+  const ex = Math.round(clipEnd   / dur * W);
+
+  // selection bg
+  ctx.fillStyle = 'rgba(200,240,80,0.08)';
+  ctx.fillRect(sx, 0, ex-sx, H);
+
+  // waveform bars
+  for (let i = 0; i < W; i++) {
+    const peak = waveformPeaks[i] * (H/2 - 4);
+    ctx.fillStyle = (i >= sx && i <= ex) ? '#c8f050' : '#2e3a1a';
+    ctx.fillRect(i, H/2 - peak, 1, peak*2);
+  }
+
+  // start / end handles
+  ctx.strokeStyle = '#c8f050'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+  ctx.fillStyle = '#c8f050';
+  ctx.fillRect(sx-HANDLE_PX/2, 0, HANDLE_PX, 6);
+  ctx.fillRect(sx-HANDLE_PX/2, H-6, HANDLE_PX, 6);
+
+  ctx.beginPath(); ctx.moveTo(ex, 0); ctx.lineTo(ex, H); ctx.stroke();
+  ctx.fillRect(ex-HANDLE_PX/2, 0, HANDLE_PX, 6);
+  ctx.fillRect(ex-HANDLE_PX/2, H-6, HANDLE_PX, 6);
+
+  // playhead
+  if (playheadPos >= 0) {
+    const px = Math.round(playheadPos / dur * W);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function startPlayheadAnim() {
+  function frame() {
+    if (!audioSource) return;
+    playheadPos = audioCtx.currentTime - playStartTime + playOffset;
+    if (playheadPos >= clipEnd) playheadPos = clipEnd;
+    drawWaveform();
+    playAnimFrame = requestAnimationFrame(frame);
+  }
+  playAnimFrame = requestAnimationFrame(frame);
+}
+
+function stopPlayheadAnim() {
+  if (playAnimFrame) { cancelAnimationFrame(playAnimFrame); playAnimFrame = null; }
+  playheadPos = -1;
+  drawWaveform();
+}
+
+$('btn-play-clip').addEventListener('click', () => {
+  if (!audioBuffer) return;
+  if (audioSource) {
+    audioManualStop = true;
+    audioSource.stop();
+    audioSource = null;
+    stopPlayheadAnim();
+    $('btn-stop-clip').disabled = true;
+    $('btn-play-clip').textContent = '▶ play clip';
+    return;
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  audioManualStop = false;
+  $('btn-play-clip').textContent = '▶ loading…';
+  $('btn-stop-clip').disabled = false;
+
+  // decode the MP3 blob so playback reflects actual compressed quality
+  const mp3Copy = audioMp3Blob.buffer.slice(0);
+  audioCtx.decodeAudioData(mp3Copy, decodedMp3 => {
+    if (audioManualStop) return; // stopped while decoding
+    audioSource = audioCtx.createBufferSource();
+    audioSource.buffer = decodedMp3;
+    audioSource.connect(audioCtx.destination);
+    playStartTime = audioCtx.currentTime;
+    playOffset = clipStart;
+    audioSource.start(0, 0, decodedMp3.duration);
+    startPlayheadAnim();
+    audioSource.onended = () => {
+      if (!audioManualStop) {
+        audioSource = null;
+        stopPlayheadAnim();
+        $('btn-stop-clip').disabled = true;
+        $('btn-play-clip').textContent = '▶ play clip';
+      }
+    };
+    $('btn-play-clip').textContent = '▶ playing…';
+  }, () => {
+    // fallback: play raw if decode fails
+    audioSource = audioCtx.createBufferSource();
+    audioSource.buffer = audioBuffer;
+    audioSource.connect(audioCtx.destination);
+    playStartTime = audioCtx.currentTime;
+    playOffset = clipStart;
+    audioSource.start(0, clipStart, clipEnd - clipStart);
+    startPlayheadAnim();
+    audioSource.onended = () => {
+      if (!audioManualStop) {
+        audioSource = null; stopPlayheadAnim();
+        $('btn-stop-clip').disabled = true;
+        $('btn-play-clip').textContent = '▶ play clip';
+      }
+    };
+    $('btn-play-clip').textContent = '▶ playing…';
+  });
+});
+
+$('btn-stop-clip').addEventListener('click', () => {
+  if (audioSource) {
+    audioManualStop = true;
+    audioSource.stop();
+    audioSource = null;
+  }
+  stopPlayheadAnim();
+  $('btn-stop-clip').disabled = true;
+  $('btn-play-clip').textContent = '▶ play clip';
+});
+
+$('btn-clear-audio').addEventListener('click', () => {
+  audioBuffer = null; audioMp3Blob = null;
+  if (audioSource) { audioManualStop = true; audioSource.stop(); audioSource = null; }
+  stopPlayheadAnim();
+  $('audio-stage').classList.remove('visible');
+  $('audio-info').textContent = '';
+  $('btn-play-clip').textContent = '▶ play clip';
+  $('btn-stop-clip').disabled = true;
+  $('audio-file-input').value = '';
+});
+
+document.querySelectorAll('[data-kbps]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-kbps]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mp3Kbps = parseInt(btn.dataset.kbps);
+    if (audioBuffer) encodeClip();
+  });
+});
 
 // ── generate ──────────────────────────────────────────
 function setStatus(msg,cls) {
@@ -899,15 +1317,17 @@ $('btn-generate').addEventListener('click', () => {
 
   const size = currentRes;
   const bin = currentMode === '4gray' ? pack4gray(processedData, size, inverted) : pack1bit(processedData, size, inverted);
-  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: currentMode };
+  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: currentMode === '1bit' ? 0 : 1 };
   const json = JSON.stringify(profile, null, 2);
 
   const zip = new JSZip();
   zip.file('profile.json', json);
   zip.file('avatar.bin', bin);
+  if (audioMp3Blob) zip.file('audio.mp3', audioMp3Blob);
   zip.generateAsync({ type: 'blob' }).then(blob => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'self_profile.zip'; a.click();
-    setStatus(`↓ self_profile.zip · ${bin.length} bytes · ${size}×${size} ${currentMode}`, 'ok');
+    const audioNote = audioMp3Blob ? ' + audio.mp3' : '';
+    setStatus(`↓ self_profile.zip · ${bin.length} bytes · ${size}×${size} ${currentMode}${audioNote}`, 'ok');
   });
 });
 </script>
