@@ -890,18 +890,31 @@ function updateModeInfo(size) {
     bytes = numPages * size; // page-major, column-minor
     fmt = `${bytes} bytes · 2bpp vertical page-major · ${algoNames[currentAlgo] || 'Floyd-Steinberg'}`;
   } else {
-    bytes = (size*size)/8;
-    fmt = `${bytes} bytes · 1-bit packed MSB · ${algoNames[currentAlgo]}`;
+    const numPages = Math.ceil(size / 4);
+    bytes = numPages * size;
+    fmt = `${bytes} bytes · 2bpp vertical page-major · ${algoNames[currentAlgo]} (00/11 only)`;
   }
   $('mode-info').textContent = fmt;
 }
 
 // ── pack ──────────────────────────────────────────────
 function pack1bit(data, size, inv) {
-  const bytes = new Uint8Array((size*size)/8);
-  for (let i = 0; i < size*size; i++) {
-    const black = inv ? data[i]===255 : data[i]===0;
-    if (black) bytes[i>>3] |= (1<<(7-(i&7)));
+  // ST75256 format: page-major, column-minor, vertical pixels
+  // same layout as pack4gray but only 00 (white) or 11 (black)
+  const numPages = Math.ceil(size / 4);
+  const bytes = new Uint8Array(numPages * size);
+  for (let page = 0; page < numPages; page++) {
+    for (let col = 0; col < size; col++) {
+      let byte = 0;
+      for (let row = 0; row < 4; row++) {
+        const y = page * 4 + row;
+        let v = y < size ? data[y * size + col] : 0;
+        if (inv) v = 255 - v;
+        const level = v < 128 ? 0 : 3; // 0=white(00), 3=black(11)
+        byte |= (level << ((3 - row) * 2));
+      }
+      bytes[page * size + col] = byte;
+    }
   }
   return bytes;
 }
