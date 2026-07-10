@@ -253,17 +253,19 @@
 
   <div class="btn-row">
     <button class="primary" id="btn-generate" disabled>generate files</button>
+    <button class="primary" id="btn-save-device" style="display:none">save to device ↑</button>
     <button id="btn-recrop" style="display:none">re-crop</button>
   </div>
   <div class="status" id="status"></div>
 
   <footer>
-    extract self_profile.zip and copy both files to the SD card root<br>
-    loaded on next boot — uuid must be exactly 4 hex chars
+    edit, then “save to device” — changes load on the next reboot<br>
+    uuid must be exactly 4 hex chars
   </footer>
 
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- served locally so the page works offline on the device AP; keep jszip.min.js next to this file -->
+<script src="jszip.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 
@@ -281,6 +283,11 @@ let contrastVal = 1.0;
 let grayBase = null;      // raw gray, full resolution, before contrast
 let currentRes = 128;     // 128 only now
 let currentMode = '1bit'; // '1bit' | '4gray'
+
+// existing profile pre-loaded from the device (edit-in-place)
+let existingAvatarBin  = null; // raw avatar.bin bytes, reused verbatim unless a new image is processed
+let existingAvatarRes  = 128;
+let existingAvatarMode = 0;    // 0 = 1bit, 1 = 4gray
 let currentAlgo = 'fs';   // 'fs' | 'atkinson' | 'bayer' etc
 let oledColor = 'white';  // 'white' | 'green' | 'amber'
 let lastCropCoords = null;
@@ -507,6 +514,8 @@ $('btn-confirm-crop').addEventListener('click', () => {
 
   $('crop-stage').classList.remove('visible');
   $('preview-grid').classList.add('visible');
+  const panel = document.querySelector('.controls-panel');
+  if (panel) panel.style.display = '';   // real source image -> controls usable again
   $('btn-generate').disabled = false;
   $('btn-recrop').style.display = 'inline-block';
   setStatus('avatar ready','ok');
@@ -563,7 +572,13 @@ $('btn-contrast-reset').addEventListener('click', () => {
 $('btn-invert').addEventListener('click', () => {
   inverted = !inverted;
   $('btn-invert').classList.toggle('active', inverted);
-  if (processedData) renderPreview(processedData);
+  if (processedData) {
+    renderPreview(processedData);
+  } else if (existingAvatarBin) {
+    // no source image: invert = flip every 2bpp level (3-level) == bitwise NOT each byte. lossless.
+    for (let i = 0; i < existingAvatarBin.length; i++) existingAvatarBin[i] = ~existingAvatarBin[i] & 0xFF;
+    drawExistingAvatar(existingAvatarBin, existingAvatarRes, existingAvatarMode);
+  }
 });
 
 document.querySelectorAll('[data-oled]').forEach(btn => {
@@ -820,6 +835,7 @@ function quantize4FS(gray, size) {
 
 // ── run pipeline ──────────────────────────────────────
 function runProcess() {
+  if (!grayBase) return;   // nothing to re-process until a new image is loaded
   const overlay = $('loading-overlay');
   overlay.classList.add('visible');
   // defer heavy work one frame so browser can paint the loading indicator
@@ -1310,17 +1326,21 @@ function setStatus(msg,cls) {
   el.className='status'+(cls?' '+cls:'');
 }
 
-$('btn-generate').addEventListener('click', () => {
+// device mode = the page is being served over http(s) (i.e. from the device),
+// not opened as a local file://. Host-agnostic so a different AP IP still works.
+const DEVICE_MODE = location.protocol === 'http:' || location.protocol === 'https:';
+
+// build the profile.json string + avatar.bin bytes both save paths share; null on bad input
+function buildProfileParts() {
   const uuid    = $('uuid').value.trim();
   const name    = $('name').value.trim();
   const species = $('species').value.trim();
   const from    = $('from').value.trim();
 
-  if (!uuid || uuid.length !== 4) { setStatus('uuid must be exactly 4 characters', 'err'); return; }
-  if (!name)                       { setStatus('name is required', 'err'); return; }
-  if (!processedData)              { setStatus('no avatar loaded', 'err'); return; }
+  if (!uuid || uuid.length !== 4) { setStatus('uuid must be exactly 4 characters', 'err'); return null; }
+  if (!name)                       { setStatus('name is required', 'err'); return null; }
+  if (!processedData && !existingAvatarBin) { setStatus('no avatar loaded', 'err'); return null; }
 
-  // collect links
   const links = [];
   document.querySelectorAll('.link-row').forEach(row => {
     const tag = row.querySelector('.link-tag').value.trim();
@@ -1328,21 +1348,131 @@ $('btn-generate').addEventListener('click', () => {
     if (tag || url) links.push({ tag, url });
   });
 
-  const size = currentRes;
-  const bin = currentMode === '4gray' ? pack4gray(processedData, size, inverted) : pack1bit(processedData, size, inverted);
-  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: currentMode === '1bit' ? 0 : 1 };
-  const json = JSON.stringify(profile, null, 2);
+  let bin, size, mode;
+  if (processedData) {
+    // a new image was processed -> repack fresh
+    size = currentRes;
+    mode = currentMode;
+    bin  = mode === '4gray' ? pack4gray(processedData, size, inverted) : pack1bit(processedData, size, inverted);
+  } else {
+    // untouched avatar -> reuse the exact bytes we loaded, no decode/repack
+    size = existingAvatarRes;
+    mode = existingAvatarMode === 1 ? '4gray' : '1bit';
+    bin  = existingAvatarBin;
+  }
+  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: mode === '1bit' ? 0 : 1 };
+  return { json: JSON.stringify(profile, null, 2), bin, size, mode };
+}
 
+// browser download (PC use) — still zips; needs JSZip
+$('btn-generate').addEventListener('click', async () => {
+  const p = buildProfileParts();
+  if (!p) return;
+  if (typeof JSZip === 'undefined') { setStatus('JSZip not available for zip download', 'err'); return; }
   const zip = new JSZip();
-  zip.file('profile.json', json);
-  zip.file('avatar.bin', bin);
+  zip.file('profile.json', p.json);
+  zip.file('avatar.bin', p.bin);
   if (audioMp3Blob) zip.file('audio.mp3', audioMp3Blob);
-  zip.generateAsync({ type: 'blob' }).then(blob => {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'self_profile.zip'; a.click();
-    const audioNote = audioMp3Blob ? ' + audio.mp3' : '';
-    setStatus(`↓ self_profile.zip · ${bin.length} bytes · ${size}×${size} ${currentMode}${audioNote}`, 'ok');
-  });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'self_profile.zip'; a.click();
+  const audioNote = audioMp3Blob ? ' + audio.mp3' : '';
+  setStatus(`↓ self_profile.zip · ${p.bin.length} bytes · ${p.size}×${p.size} ${p.mode}${audioNote}`, 'ok');
 });
+
+// decode the stored 2bpp avatar.bin for an on-screen preview only (save reuses raw bytes)
+function drawExistingAvatar(bin, size, modeNum) {
+  const expected = Math.ceil(size / 4) * size;
+  if (!bin || bin.length < expected) {
+    setStatus(`avatar.bin wrong size (${bin ? bin.length : 0} B, expected ${expected})`, 'err');
+    return;
+  }
+  const colors = { white:[255,255,255], green:[176,255,48], amber:[255,176,0] };
+  const [fr,fg,fb] = colors[oledColor] || colors.white;
+
+  const paint = (id) => {
+    const c = $(id);
+    c.width = size; c.height = size;
+    const ctx = c.getContext('2d');
+    const idata = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) {
+      const page = Math.floor(y / 4), row = y % 4;
+      for (let x = 0; x < size; x++) {
+        const level = (bin[page * size + x] >> ((3 - row) * 2)) & 0x03;  // 0=white .. 3=black
+        const lit   = 1 - level / 3;   // match renderPreview: level0(white)=lit, level3(black)=dark
+        const i = (y * size + x) * 4;
+        idata.data[i]   = Math.round(fr * lit);
+        idata.data[i+1] = Math.round(fg * lit);
+        idata.data[i+2] = Math.round(fb * lit);
+        idata.data[i+3] = 255;
+      }
+    }
+    ctx.putImageData(idata, 0, 0);
+  };
+
+  paint('canvas-dither');
+  paint('canvas-orig');
+  $('preview-label').textContent = `${size}×${size} · ${modeNum === 1 ? '4-level gray' : '1-bit'} · current`;
+  $('preview-grid').classList.add('visible');
+  // no source image behind a loaded avatar -> hide the controls that need one
+  // (resolution / mode / algorithm / contrast). invert stays: it flips the bytes directly.
+  const panel = document.querySelector('.controls-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+// pull the profile already on the device so this becomes an edit, not a re-entry
+async function loadExistingProfile() {
+  try {
+    setStatus('checking device for existing profile…', '');
+    const rj = await fetch('/profile.json', { cache: 'no-store' });
+    if (!rj.ok) {
+      setStatus(`no profile on device (HTTP ${rj.status}) — starting blank`, 'err');
+      return;
+    }
+    const p = await rj.json();
+    $('uuid').value    = p.uuid || '';
+    $('name').value    = p.name || '';
+    $('species').value = p.species || '';
+    $('from').value    = p.from || '';
+    $('links-list').innerHTML = '';
+    (p.links || []).forEach(l => addLink(l.tag || '', l.url || ''));
+    existingAvatarRes  = p.avatar_res  || 128;
+    existingAvatarMode = p.avatar_mode || 0;
+
+    const ra = await fetch('/avatar.bin', { cache: 'no-store' });
+    if (ra.ok) {
+      existingAvatarBin = new Uint8Array(await ra.arrayBuffer());
+      drawExistingAvatar(existingAvatarBin, existingAvatarRes, existingAvatarMode);
+    }
+    setStatus('loaded your current profile — edit and save', 'ok');
+  } catch (e) {
+    setStatus('could not load profile: ' + e.message, 'err');
+    console.error('loadExistingProfile', e);
+  }
+}
+
+// POST straight to the device — two file fields, no zip
+const btnDevice = $('btn-save-device');
+if (DEVICE_MODE && btnDevice) {
+  btnDevice.style.display = '';
+  btnDevice.addEventListener('click', async () => {
+    const p = buildProfileParts();
+    if (!p) return;
+    setStatus('uploading to device…', '');
+    try {
+      const fd = new FormData();
+      fd.append('profile', new Blob([p.json], { type: 'application/json' }), 'profile.json');
+      fd.append('avatar',  new Blob([p.bin],  { type: 'application/octet-stream' }), 'avatar.bin');
+      const resp = await fetch('/upload', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      setStatus(`✓ saved to device · ${p.bin.length} bytes · reboot to apply`, 'ok');
+    } catch (e) {
+      setStatus('upload failed: ' + e.message, 'err');
+    }
+  });
+}
+
+if (DEVICE_MODE) loadExistingProfile();
 </script>
 </body>
 </html>
