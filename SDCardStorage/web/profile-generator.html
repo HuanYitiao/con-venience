@@ -131,7 +131,6 @@
   <div class="section">
     <div class="section-label">identity</div>
     <div class="fields">
-      <div class="field"><label>uuid</label><input type="text" id="uuid" placeholder="ACDC" maxlength="4"></div>
       <div class="field"><label>name</label><input type="text" id="name" placeholder="Wolfram Liu" maxlength="31"></div>
       <div class="field"><label>species</label><input type="text" id="species" placeholder="Samoyed" maxlength="63"></div>
       <div class="field"><label>from</label><input type="text" id="from" placeholder="Jönköping" maxlength="63"></div>
@@ -259,8 +258,7 @@
   <div class="status" id="status"></div>
 
   <footer>
-    edit, then “save to device” — changes load on the next reboot<br>
-    uuid must be exactly 4 hex chars
+    edit, then “save to device” — changes load on the next reboot
   </footer>
 
 </div>
@@ -329,11 +327,6 @@ function addLink(tag = '', url = '') {
 
 $('btn-add-link').addEventListener('click', () => addLink());
 updateLinksCount();
-
-// ── uuid ──────────────────────────────────────────────
-$('uuid').addEventListener('input', function() {
-  this.value = this.value.toUpperCase().replace(/[^0-9A-F]/g, '').substring(0, 4);
-});
 
 // ── upload ────────────────────────────────────────────
 const zone = $('upload-zone');
@@ -1332,13 +1325,11 @@ const DEVICE_MODE = location.protocol === 'http:' || location.protocol === 'http
 
 // build the profile.json string + avatar.bin bytes both save paths share; null on bad input
 function buildProfileParts() {
-  const uuid    = $('uuid').value.trim();
   const name    = $('name').value.trim();
   const species = $('species').value.trim();
   const from    = $('from').value.trim();
 
-  if (!uuid || uuid.length !== 4) { setStatus('uuid must be exactly 4 characters', 'err'); return null; }
-  if (!name)                       { setStatus('name is required', 'err'); return null; }
+  if (!name) { setStatus('name is required', 'err'); return null; }
   if (!processedData && !existingAvatarBin) { setStatus('no avatar loaded', 'err'); return null; }
 
   const links = [];
@@ -1360,7 +1351,7 @@ function buildProfileParts() {
     mode = existingAvatarMode === 1 ? '4gray' : '1bit';
     bin  = existingAvatarBin;
   }
-  const profile = { uuid, name, species, from, links, avatar_res: size, avatar_mode: mode === '1bit' ? 0 : 1 };
+  const profile = { name, species, from, links, avatar_res: size, avatar_mode: mode === '1bit' ? 0 : 1 };
   return { json: JSON.stringify(profile, null, 2), bin, size, mode };
 }
 
@@ -1430,7 +1421,6 @@ async function loadExistingProfile() {
       return;
     }
     const p = await rj.json();
-    $('uuid').value    = p.uuid || '';
     $('name').value    = p.name || '';
     $('species').value = p.species || '';
     $('from').value    = p.from || '';
