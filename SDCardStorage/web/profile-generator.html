@@ -70,27 +70,20 @@
   .mode-info { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 10px 6px; }
   .loading-overlay { display: none; font-family: var(--mono); font-size: 11px; color: var(--accent); padding: 4px 10px 6px; }
   .loading-overlay.visible { display: block; }
-  .links-section { margin-top: 14px; }
-  .links-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .section-sublabel { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
-  .links-count { color: var(--border-hi); margin-left: 6px; }
-  .link-row { display: grid; grid-template-columns: 100px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
-  .link-tag { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; outline: none; transition: border-color 0.15s; }
-  .link-tag:focus { border-color: var(--accent-dim); }
-  .link-tag::placeholder { color: var(--muted); }
-  .link-url { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; outline: none; transition: border-color 0.15s; width: 100%; }
-  .link-url:focus { border-color: var(--accent-dim); }
-  .link-url::placeholder { color: var(--muted); }
-  .link-remove { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 14px; cursor: pointer; padding: 0; height: 30px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-  .link-remove:hover { border-color: #e05a5a; color: #e05a5a; }
   .links-section { margin-top: 1.25rem; }
   .links-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .section-sublabel { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
   .links-count { color: var(--border-hi); margin-left: 6px; }
-  .link-row { display: grid; grid-template-columns: 100px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
-  .link-row input { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px; width: 100%; outline: none; transition: border-color 0.15s; }
-  .link-row input:focus { border-color: var(--accent-dim); }
-  .link-row input::placeholder { color: var(--muted); }
+  .link-row { display: grid; grid-template-columns: 116px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .link-platform { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 8px; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; transition: border-color 0.15s; }
+  .link-platform:focus { border-color: var(--accent-dim); }
+  .link-input-wrap { display: flex; align-items: stretch; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; transition: border-color 0.15s; }
+  .link-input-wrap:focus-within { border-color: var(--accent-dim); }
+  .link-affix { display: flex; align-items: center; padding: 0 1px 0 10px; color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; user-select: none; }
+  .link-input-wrap.other .link-affix { display: none; }
+  .link-handle { flex: 1; min-width: 0; background: transparent; border: none; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 10px 7px 1px; outline: none; }
+  .link-input-wrap.other .link-handle { padding-left: 10px; }
+  .link-handle::placeholder { color: var(--muted); }
   .link-remove { font-family: var(--mono); font-size: 14px; color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 0; line-height: 1; transition: color 0.15s; }
   .link-remove:hover { color: #e05a5a; }
 
@@ -301,6 +294,47 @@ const HANDLE_R = 16;
 // ── links ─────────────────────────────────────────────
 const MAX_LINKS = 5;
 
+// the input side owns the platform -> url-prefix table (single source of truth).
+// profile.json stores the full canonical url; `platform` is a display hint only.
+// to add a platform, append one row here — nothing downstream needs to change.
+const PLATFORMS = [
+  { id: 'telegram', label: 'Telegram', base: 'https://t.me/',         ph: 'username' },
+  { id: 'x',        label: 'X',        base: 'https://x.com/',        ph: 'username' },
+  { id: 'linktree', label: 'Linktree', base: 'https://linktr.ee/',    ph: 'username' },
+  { id: 'youtube',  label: 'YouTube',  base: 'https://youtube.com/@', ph: 'handle'   },
+  { id: 'other',    label: 'Other',    base: '',                      ph: 'https://…' },
+];
+
+function platformById(id) {
+  return PLATFORMS.find(p => p.id === id) || PLATFORMS[PLATFORMS.length - 1];
+}
+
+function affixText(p) {
+  return p.base.replace(/^https?:\/\//i, '');
+}
+
+// reduce a bare handle, "@handle", or a pasted full/partial url down to just
+// the handle for a given platform base.
+function cleanHandle(base, raw) {
+  let h = (raw || '').trim();
+  h = h.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  const bare = base.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  if (bare && h.toLowerCase().startsWith(bare.toLowerCase())) h = h.slice(bare.length);
+  h = h.replace(/^[@/]+/, '').replace(/\/+$/, '');
+  return h;
+}
+
+function buildUrl(platformId, raw) {
+  const p = platformById(platformId);
+  if (p.id === 'other') {
+    let u = (raw || '').trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    return u;
+  }
+  const h = cleanHandle(p.base, raw);
+  return h ? p.base + h : '';
+}
+
 function updateLinksCount() {
   const n = document.querySelectorAll('.link-row').length;
   $('links-count').textContent = `${n} / ${MAX_LINKS}`;
@@ -308,19 +342,46 @@ function updateLinksCount() {
   $('btn-add-link').style.opacity = n >= MAX_LINKS ? '0.3' : '1';
 }
 
-function addLink(tag = '', url = '') {
+function addLink(platformId = 'telegram', rawValue = '') {
   if (document.querySelectorAll('.link-row').length >= MAX_LINKS) return;
+
   const row = document.createElement('div');
   row.className = 'link-row';
   row.innerHTML = `
-    <input class="link-tag" type="text" placeholder="telegram" maxlength="24" value="${tag}">
-    <input class="link-url" type="text" placeholder="t.me/username" maxlength="127" value="${url}">
+    <select class="link-platform">
+      ${PLATFORMS.map(x => `<option value="${x.id}">${x.label}</option>`).join('')}
+    </select>
+    <div class="link-input-wrap">
+      <span class="link-affix"></span>
+      <input class="link-handle" type="text" maxlength="127">
+    </div>
     <button class="link-remove" title="remove">×</button>
   `;
+
+  const sel    = row.querySelector('.link-platform');
+  const wrap   = row.querySelector('.link-input-wrap');
+  const affix  = row.querySelector('.link-affix');
+  const handle = row.querySelector('.link-handle');
+
+  function applyPlatform(id, keepRaw) {
+    const pf = platformById(id);
+    sel.value = pf.id;
+    affix.textContent = affixText(pf);
+    handle.placeholder = pf.ph;
+    wrap.classList.toggle('other', pf.id === 'other');
+    if (keepRaw !== undefined) {
+      handle.value = pf.id === 'other' ? keepRaw : cleanHandle(pf.base, keepRaw);
+    }
+  }
+
+  applyPlatform(platformById(platformId).id, rawValue);
+
+  sel.addEventListener('change', () => applyPlatform(sel.value, handle.value));
   row.querySelector('.link-remove').addEventListener('click', () => {
     row.remove();
     updateLinksCount();
   });
+
   $('links-list').appendChild(row);
   updateLinksCount();
 }
@@ -1334,9 +1395,10 @@ function buildProfileParts() {
 
   const links = [];
   document.querySelectorAll('.link-row').forEach(row => {
-    const tag = row.querySelector('.link-tag').value.trim();
-    const url = row.querySelector('.link-url').value.trim();
-    if (tag || url) links.push({ tag, url });
+    const platform = row.querySelector('.link-platform').value;
+    const raw      = row.querySelector('.link-handle').value;
+    const url      = buildUrl(platform, raw);
+    if (url) links.push({ platform, url });
   });
 
   let bin, size, mode;
@@ -1425,7 +1487,14 @@ async function loadExistingProfile() {
     $('species').value = p.species || '';
     $('from').value    = p.from || '';
     $('links-list').innerHTML = '';
-    (p.links || []).forEach(l => addLink(l.tag || '', l.url || ''));
+    (p.links || []).forEach(l => {
+      if (typeof l === 'string') { addLink('other', l); return; }
+      if (l.platform) { addLink(l.platform, l.url || ''); return; }
+      // legacy { tag, url }: map tag -> platform if we recognise it, else Other
+      const tag = (l.tag || '').toLowerCase();
+      const m = PLATFORMS.find(x => x.id === tag || x.label.toLowerCase() === tag);
+      addLink(m ? m.id : 'other', l.url || '');
+    });
     existingAvatarRes  = p.avatar_res  || 128;
     existingAvatarMode = p.avatar_mode || 0;
 
