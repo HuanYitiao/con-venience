@@ -17,6 +17,22 @@ Ever hit it off with another fursuiter, only to realize you can't unlock your ph
 
 ---
 
+## Main contributers
+
+[![Contributors](https://contrib.rocks/image?repo=HuanYitiao/con-venience)](https://github.com/HuanYitiao/con-venience/graphs/contributors)
+
+
+## Join the build
+
+![Breadboard prototype — dual boards, ST75256 display bring-up](docs/images/demo1.jpg)
+*Two units, both alive.*
+
+This is a real project running on real hardware, built by one embedded software engineer, one project manager and one electrical engineer, in spare time. It doesn't have to stay that way.
+
+If you've ever wanted to build something for the furry community — firmware, hardware, CAD, app, whatever. There's a seat here. The architecture is documented, the code is commented, the issues are open. Come say hi.
+
+---
+
 ## What it does
 
 | Scenario | What happens |
@@ -98,7 +114,8 @@ Everything is driven by network events — no button presses. Changes take effec
 con-venience/                      # main repo — hardware, docs
 └── firmware/                      # git submodule → con-venience-firmware
     ├── src/
-    │   └── main.cpp               # thin glue: events → FSM → render
+    │   ├── main.cpp               # thin glue: events → FSM → render
+    │   └── test_main.cpp          # hardware component test entry
     ├── lib/
     │   ├── acom/                  # ACOM layer 1 — single-wire OOB MAC exchange
     │   ├── audio/                 # MAX98357A I2S tones
@@ -106,10 +123,15 @@ con-venience/                      # main repo — hardware, docs
     │   ├── button/                # large button + directional
     │   ├── display/               # custom ST75256 driver + u8g2 fonts
     │   ├── fsm/                   # Idle / Pairing / Contact card / Menu
+    │   ├── io_expander/           # MCP23017 GPIO expander
     │   ├── led/                   # status indicator
     │   ├── packing/               # profile serialize / deserialize
+    │   ├── pcf85063a/             # RTC driver
     │   ├── pins/                  # pins.h — single source of truth for the pin map
+    │   ├── power/                 # battery ADC monitoring / low-voltage alert
+    │   ├── set_time/              # SoftAP time-sync handler
     │   ├── storage/               # SD card + JSON, on-demand loading
+    │   ├── timebase/              # gettimeofday/settimeofday wall-clock layer
     │   └── wifi_config/           # SoftAP provisioning + web profile generator
     └── platformio.ini
 ```
@@ -127,13 +149,14 @@ con-venience/                      # main repo — hardware, docs
 [x] BLE exchange — client-driven READ architecture
 [x] Settings / Wi-Fi provisioning — SoftAP + QR + web profile generator
 [x] End-to-end pairing — touch → exchange → save → contact card, working
-[~] RTC (PCF85063A) — final firmware integration in progress
-[ ] Power rails — LDO vs buck-boost decision with EE, before layout
-[ ] Custom PCB — after power architecture sign-off
-[ ] Community hardware kit — post-PCB
+[x] RTC (PCF85063A) — verified, basic time-sync working (further RTC-dependent features TBD)
+[~] Power rails — designed in current PCB revision, pending validation
+[~] Custom PCB — pinout finalized, layout in progress (power rails included)
+[~] Enclosure CAD — in progress (Onshape → FreeCAD)
+[ ] Prepare for the presention on Furnavia
 ```
 
-`[~]` = validated, integration pending. The firmware is feature-complete apart from the RTC; the open work is now mostly on the hardware side.
+`[~]` = validated, integration pending. The firmware is feature-complete apart from the RTC and power rails; the open work is now mostly on the hardware side.
 
 ---
 
