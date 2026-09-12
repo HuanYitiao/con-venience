@@ -19,8 +19,14 @@ Ever hit it off with another fursuiter, only to realize you can't unlock your ph
 
 ## Main contributers
 
+**Main repo**
 [![Contributors](https://contrib.rocks/image?repo=HuanYitiao/con-venience)](https://github.com/HuanYitiao/con-venience/graphs/contributors)
 
+**Firmware**
+[![Contributors](https://contrib.rocks/image?repo=HuanYitiao/con-venience-firmware)](https://github.com/HuanYitiao/con-venience-firmware/graphs/contributors)
+
+**Hardware**
+[![Contributors](https://contrib.rocks/image?repo=Husky-Wang/con-venience-hw)](https://github.com/Husky-Wang/con-venience-hw/graphs/contributors)
 
 ## Join the build
 
