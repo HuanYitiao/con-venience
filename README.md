@@ -17,16 +17,12 @@ Ever hit it off with another fursuiter, only to realize you can't unlock your ph
 
 ---
 
-## Main contributers
-
-**Main repo**
-[![Contributors](https://contrib.rocks/image?repo=HuanYitiao/con-venience)](https://github.com/HuanYitiao/con-venience/graphs/contributors)
-
-**Firmware**
-[![Contributors](https://contrib.rocks/image?repo=HuanYitiao/con-venience-firmware)](https://github.com/HuanYitiao/con-venience-firmware/graphs/contributors)
-
-**Hardware**
-[![Contributors](https://contrib.rocks/image?repo=Husky-Wang/con-venience-hw)](https://github.com/Husky-Wang/con-venience-hw/graphs/contributors)
+## Main contributors
+| | |
+|---|---|
+| <img src="https://github.com/HuanYitiao.png" width="60"> | **Wolfram Liu** — firmware & system design, mechancial engineer<br>[@HuanYitiao](https://github.com/HuanYitiao) |
+| <img src="https://github.com/Husky-Wang.png" width="60"> | **Husky Wang** — hardware & power electronics<br>[@Husky-Wang](https://github.com/Husky-Wang) |
+| <img src="https://github.com/IDoccupled.png" width="60"> | **Günther** — Project manager<br>[@IDoccupled](https://github.com/IDoccupled) |
 
 ## Join the build
 
