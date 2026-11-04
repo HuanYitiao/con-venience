@@ -1384,6 +1384,16 @@ function setStatus(msg,cls) {
 // not opened as a local file://. Host-agnostic so a different AP IP still works.
 const DEVICE_MODE = location.protocol === 'http:' || location.protocol === 'https:';
 
+// phone/tablet? (iPadOS reports itself as Macintosh, so also check touch points)
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+                  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
+// local zip download only makes no sense on a phone joined to the device AP
+// (captive-portal webviews can't download; the phone just saves to the device).
+// PC on the AP, or the page opened as a local file, keeps local save.
+const LOCAL_SAVE_ENABLED = !(DEVICE_MODE && IS_MOBILE);
+if (!LOCAL_SAVE_ENABLED) $('btn-generate').style.display = 'none';
+
 // build the profile.json string + avatar.bin bytes both save paths share; null on bad input
 function buildProfileParts() {
   const name    = $('name').value.trim();
@@ -1421,7 +1431,21 @@ function buildProfileParts() {
 $('btn-generate').addEventListener('click', async () => {
   const p = buildProfileParts();
   if (!p) return;
-  if (typeof JSZip === 'undefined') { setStatus('JSZip not available for zip download', 'err'); return; }
+  if (!LOCAL_SAVE_ENABLED) return;
+  if (typeof JSZip === 'undefined') {
+    // jszip.min.js missing next to this page -> fall back to separate downloads
+    const save = (data, name, type) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+      a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+    save(p.json, 'profile.json', 'application/json');
+    setTimeout(() => save(p.bin, 'avatar.bin', 'application/octet-stream'), 300);
+    if (audioMp3Blob) setTimeout(() => save(audioMp3Blob, 'audio.mp3'), 600);
+    setStatus(`↓ profile.json + avatar.bin${audioMp3Blob ? ' + audio.mp3' : ''} (JSZip missing, saved separately)`, 'ok');
+    return;
+  }
   const zip = new JSZip();
   zip.file('profile.json', p.json);
   zip.file('avatar.bin', p.bin);
@@ -1502,6 +1526,7 @@ async function loadExistingProfile() {
     if (ra.ok) {
       existingAvatarBin = new Uint8Array(await ra.arrayBuffer());
       drawExistingAvatar(existingAvatarBin, existingAvatarRes, existingAvatarMode);
+      $('btn-generate').disabled = false;   // existing avatar is enough to save locally too
     }
     setStatus('loaded your current profile — edit and save', 'ok');
   } catch (e) {
