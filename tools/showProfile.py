@@ -37,8 +37,10 @@ SPECIES_LEN = 64
 FROM_LEN = 64
 AVATAR_LEN_MAX = 4096
 
-# 2bpp gray value -> 8-bit luminance for the PNG
-GRAY_TO_LUMA = {WHITE: 255, LIGHT_GRAY: 170, DARK_GRAY: 85, BLACK: 0}
+# LCD look: the panel's pale blue base and the dark pixel colour. The 4 gray
+# levels are interpolated linearly between them. Tweak to match the real panel.
+LCD_BG = "#c8dbe6"
+LCD_FG = "#1a2433"
 
 # ── U8g2 fonts (raw arrays from U8g2 src/clib/u8g2_fonts.c) ─────
 FONT_8x13B_TF = base64.b64decode("vwADAwMEAwUFBw0A/gr+Cv8BhAMHCXIgBQBuDCEH0kOMJwIiCKVaDAkXASMQT0IcJYnkcFE5XJQkEgAkE18+vGBFEqHEiEVahBKRFGMAJRFXQozRJFQRSoVSoaQUGQ0mDT9CHJKKSEQSlUQGJweiW4xDACgM3T48kZpIpigTKikN3T4MoZpQpiQTqQEqDj9GvHDsNJxJRLEIACsLtkosoehQEooALAksPwzKihIALQaOUgwDLggcQxwJRQIvC1dC7KiiXqVhADANV0KsmUSNbxK1EQAxCtZCLNmIqE8GMgxXQpyKjCYV6vUAMw5XQoyrUJEsldIkFQA0EFdCTOGMJFGSiCRHqQoANQ9XQoyDVGoZSVVpkgoANg9XQiySUCq1jGi0kqQCNwxXQoyroqpQqg0AOA5XQpyKjE1SkXGTVAA5DldCnIqoxjSxKopIADoMREMcCUUOk1AkADsLTD8cCUVKWVECPAjOQkyZrjo9CKZKDDvUAD4JzkIMqW46Aj8OV0KciowmFarKoUoAQA9PQpzKQVSxhCahydUAQQxXQqxZRcZ2oHETQhNXQgyTikgikpRURBKRRHSIAEMNV0KcyohG1a0kqQBEFVdCDJOKSCKSiCQiiUgikogOEQBFC1dCjINUtSTVekYMV0KMg1S1JNUVAEcNV0KcioxVU40mqQBIC1dCDBm3A403AUkJVEMMiki/EEoMV0LMqV5pNEkFAEsQV0IMGZNEiUaTiFRkNAFMCVdCDKn+eAhNDVdCDBmtcqhEaLwJTg5XQgwZrVSyUExtNAFPC1dCnIqMv0kqAFAMV0IMi4zbISLVClELXz6cioy/UMoCUhBXQgyLjO0QKamIJDKaAFMOV0Kcioy5LKXRJBUAVAnWQgyTUH8CVQpXQgwZ/yapAFYRV0IMGTdJLCQRSWTDaQwAVw5XQgwZv0QokYNEBQBYEVdCDBlNoiSRDWcSkUSNJlkM1kIMEZOERBPqBFoKV0KMq6JepQdbCN0+jJv+VlwLV0KMsFSsV3EAXQjdPoya/nZeCSdavOhMoiZfBg8+jANgBxxfDJkCYQw/Qpyy5BBjmkwEYg1XQgypliUaW4kyAWMMP0KcyoiqOpJUAGQMV0JcLRNSjdNkImUNP0Kciox2oMokFQBmDFdCLJKKVNEk1QhnEE86nENIIpKIRIwVmaQCaAtXQgypliUabwJpCkxDHJF0pAsBag1fOlx14FQrjSapAGsPV0IMqSaJEo0mEanIBGwIVEOMkf5CbQ0/QhyVgyRCidDYBG4KP0IMyRKNNwFvCz9CnIqMN0kFAHAOTzoMyRKNrUSZSKUAcQxPOpwJqcZpMpEqcgo/QgzJElVXAHMOP0KcikwiHktkkgoAdAxXQhypRpNUk4gCdQo/QgwZnyYTAXYMP0IMGTeJkkQ2AncNP0IMGZcIJXKQqAB4DT9CDBlNojaTqNEEeQ1POgwZT5OJlCapAHoIP0KMo14Pew3ePiyKUFU0lQlVCXwH0kOMBwN9Dt4+DKpQTTqSClVIAH4JH1qc0UE0AaAFAG4MoQjSQwzS4QCiEEZGvNglMglJQpKUWggAoxBfPiySilRokirSIocgAKQPP0YM2UGiFAtJJAeZAKUP1kIMEZOERDGJTEIRAKYI0kOMQ/AQpw/WQhyKiEoRkSRUkoQCqAiVYgwJRQCpEU9GnIpsMqFEaJSIZE1SAaoJvU4M4iF0LasOP0YsiZ4iMolMIpMIrAguRoxDNQOtBo1SjAKuEk9GnIpsMpGkSCZKkpSZpAKvBo5qDAOwCqZaHIqIJKEAsQu+RiyhyCSUQwyyCrRSjElEJFEiswq0UoxJRG1SAbQIHF8siRIAtQxPOgwZb5WDRCoFthZfPqwKZRQZRUaRCCU0CUaCkWAkOLcGklMMArgInDqsUUQCuQm0UhzJSAsBugm9TpyJzTIuuw8/RgyJTCKTyCQhiZ4AvA5XQhzhVFtFOJPEqAK9DVdCHOFUtUKRClUJvhFXQoxhRCiWRUQk4UwSowq/D9ZCLKEcJpQpikgSCgDAD1dCLLEcOKvIaAcaTQDBD1dCPKEcOqvIaAcaTQDCD1dCrJlEDptVZLQDjSbDEFdCLEkoIgfOKjLagUYTxBBXQhwliRw2q8hoBxpNAMUQX0I8YSgoB84qMtqBRhPGE1dCnANJIpKIJCKLkkQkEUkIxxBnOpzKiKrrSFKUhYIyAMgOV0IssRx0kEpLUukByQ5XQjyhHHaQSktS6QHKD1dCrJlEDjlIpSWp9ADLD1dCHCWJHHKQSktS6QHMC1RDDJmUItKFAM0LVEMsiZQi0oUAzgxVQ5yJKkmmEwUAzwxVQwwJRUqS6UQB0BBHQgyTisiiJBFJRIcIANERV0IsSSgiB8lKFkqEYqoJ0g1fQiyxHFaR8U1SAdMNX0I8oRxYkfFNUgHUDl9CrJlEDqrI+CapANUPX0IsSSgih1VkfJNUANYOX0IcJYkcVJHxTVIB1w0/QgwZTVKbVWQ0AdgTVz7sSEVUiVAilAglUpJUwgDZDFdCLLEcJOObpALaDFdCPKEcJuObpALbDVdCrJlEDpHxTVIB3A1XQhwliRwi45ukAt0O1kI8dYhIEgrRhJoA3g1PQgypRcZ2iEhVAd8TV0IskopIojIRSUQqIolIogLgD1dCLLEcVpYcYkyTiQDhD1dCPKEcWJYcYkyTiQDiEFdCrJlEDipLDjGmyUQA4xBXQixJKCKHlSWHGNNkIuQQV0IcJYkcVJYcYkyTiQDlEF9CPGEoKIeVJYcY02Qi5g8/QhxdYpJIRUkiiagA5xBXOpzKiKo6khRloaAMAOgPV0IssRxWkdEOVJmkAukPV0I8oRxYkdEOVJmkAuoQV0KsmUQOqshoB6pMUgHrEFdCHCWJHFSR0Q5UmaQC7ApUQwyZdKQXAu0JVEMc5ZFeCO4K1UKcifJMTwTvC9VCDAlFPNMTAfAOV0IctRlZdIhxk1QA8Q5XQixJKCIHSZZovAnyDVdCLLEcVpHxJqkA8w1XQjyhHFiR8SapAPQOV0KsmUQOqsh4k1QA9Q9XQixJKCKHVWS8SSoA9g5XQhwliRxUkfEmqQD3DL5GLKEcYocIRQD4EU8+7EhFVIlQIpRISVIJA/kMV0IssRwk49NkIvoMV0I8oRwm49NkIvsNV0KsmUQOkfFpMhH8DVdCHCWJHCLj02Qi/RBnOjyhHCbjaTKR0iQVAP4PXzoMqcoSja1EmUilAP8RZzocJYkcIuNpMpHSJBUAAAAABP//AAA=")
@@ -254,9 +256,23 @@ def draw_contact_card(contact):
     return screen
 
 
-def to_image(screen, scale):
-    img = Image.new("L", (DISPLAY_WIDTH, DISPLAY_HEIGHT))
-    img.putdata([GRAY_TO_LUMA[v] for row in screen for v in row])
+def parse_hex_color(s):
+    s = s.lstrip("#")
+    if len(s) != 6:
+        raise argparse.ArgumentTypeError(f"expected a colour like #c8dbe6, got {s!r}")
+    return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def gray_palette(bg, fg):
+    """Map the 2bpp gray levels (0 = white .. 3 = black) onto bg .. fg."""
+    return {v: tuple(round(b + (f - b) * v / 3) for b, f in zip(bg, fg))
+            for v in (WHITE, LIGHT_GRAY, DARK_GRAY, BLACK)}
+
+
+def to_image(screen, scale, bg, fg):
+    palette = gray_palette(bg, fg)
+    img = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT))
+    img.putdata([palette[v] for row in screen for v in row])
     if scale > 1:
         img = img.resize((DISPLAY_WIDTH * scale, DISPLAY_HEIGHT * scale), Image.NEAREST)
     return img
@@ -268,10 +284,17 @@ def main():
     ap.add_argument("avatar", help="avatar.bin")
     ap.add_argument("-o", "--output", default="contact_card.png", help="output image (default: contact_card.png)")
     ap.add_argument("--scale", type=int, default=1, help="integer upscale factor (nearest neighbour)")
+    ap.add_argument("--bg", type=parse_hex_color, default=LCD_BG,
+                    help=f"LCD background colour (default: {LCD_BG})")
+    ap.add_argument("--fg", type=parse_hex_color, default=LCD_FG,
+                    help=f"LCD pixel colour (default: {LCD_FG})")
+    ap.add_argument("--plain", action="store_true",
+                    help="pure white/black grayscale instead of the LCD tint")
     args = ap.parse_args()
 
+    bg, fg = ((255, 255, 255), (0, 0, 0)) if args.plain else (args.bg, args.fg)
     contact = load_profile(args.profile, args.avatar)
-    to_image(draw_contact_card(contact), max(1, args.scale)).save(args.output)
+    to_image(draw_contact_card(contact), max(1, args.scale), bg, fg).save(args.output)
     print(f"wrote {args.output}")
 
 
