@@ -2,7 +2,7 @@
 """Render a profile the same way the firmware's drawContactCard() does.
 
 Usage:
-    python3 tools/showProfile.py profile.json avatar.bin [-o card.png] [--scale 4]
+    python3 tools/showProfile.py [profile dir | profile.json avatar.bin] [-o card.png] [--scale 4]
 
 Mirrors firmware/con-venience/lib/display/display.cpp:
   - left 128x128: avatar.bin blitted at (0, 0) (canvasBlitAvatar, no rotation)
@@ -17,6 +17,7 @@ embedded below and decoded with the same algorithm as u8g2_font.c.
 import argparse
 import base64
 import json
+import os
 import sys
 
 from PIL import Image
@@ -225,6 +226,7 @@ def load_profile(json_path, bin_path):
     if len(avatar) != expected:
         sys.exit(f"avatar.bin is {len(avatar)} bytes, expected {expected} for avatar_res {res}")
     return {
+        "full_name": str(doc.get("name") or ""),
         "name": strlcpy(doc.get("name"), NAME_LEN),
         "species": strlcpy(doc.get("species"), SPECIES_LEN),
         "from": strlcpy(doc.get("from"), FROM_LEN),
@@ -278,11 +280,35 @@ def to_image(screen, scale, bg, fg):
     return img
 
 
+def safe_filename(name):
+    """Profile name -> file name: drop path separators and control chars."""
+    cleaned = "".join("_" if c in '/\\:*?"<>|' or ord(c) < 32 else c for c in name)
+    cleaned = cleaned.strip().strip(".")
+    return cleaned or "contact_card"
+
+
+def resolve_inputs(inputs):
+    """Accept a profile directory, or the two files in either order."""
+    if not inputs:
+        inputs = ["."]
+    if len(inputs) == 1 and os.path.isdir(inputs[0]):
+        d = inputs[0]
+        return os.path.join(d, "profile.json"), os.path.join(d, "avatar.bin")
+    if len(inputs) != 2:
+        sys.exit("give a profile directory, or profile.json and avatar.bin")
+    a, b = inputs
+    if a.lower().endswith(".bin") or b.lower().endswith(".json"):
+        a, b = b, a
+    return a, b
+
+
 def main():
     ap = argparse.ArgumentParser(description="Render profile.json + avatar.bin like drawContactCard()")
-    ap.add_argument("profile", help="profile.json")
-    ap.add_argument("avatar", help="avatar.bin")
-    ap.add_argument("-o", "--output", default="contact_card.png", help="output image (default: contact_card.png)")
+    ap.add_argument("inputs", nargs="*", metavar="PATH",
+                    help="profile directory (default: current directory), "
+                         "or profile.json and avatar.bin in any order")
+    ap.add_argument("-o", "--output",
+                    help="output image (default: <name from profile.json>.png in the current directory)")
     ap.add_argument("--scale", type=int, default=1, help="integer upscale factor (nearest neighbour)")
     ap.add_argument("--bg", type=parse_hex_color, default=LCD_BG,
                     help=f"LCD background colour (default: {LCD_BG})")
@@ -293,9 +319,11 @@ def main():
     args = ap.parse_args()
 
     bg, fg = ((255, 255, 255), (0, 0, 0)) if args.plain else (args.bg, args.fg)
-    contact = load_profile(args.profile, args.avatar)
-    to_image(draw_contact_card(contact), max(1, args.scale), bg, fg).save(args.output)
-    print(f"wrote {args.output}")
+    profile_path, avatar_path = resolve_inputs(args.inputs)
+    contact = load_profile(profile_path, avatar_path)
+    output = args.output or safe_filename(contact["full_name"]) + ".png"
+    to_image(draw_contact_card(contact), max(1, args.scale), bg, fg).save(output)
+    print(f"wrote {output}")
 
 
 if __name__ == "__main__":
